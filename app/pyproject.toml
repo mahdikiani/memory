@@ -1,0 +1,92 @@
+[project]
+name = "knowledge"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.123.7",
+    "fastapi-mongo-base>=1.0.43",
+    "httpx>=0.28.1",
+    "langchain>=1.1.0",
+    "langchain-community>=0.4.1",
+    "langchain-openai>=1.1.0",
+    "openai>=2.8.1",
+    "pydantic>=2.12.5",
+    "redis>=7.1.0",
+    "surrealdb>=1.0.7",
+]
+
+[dependency-groups]
+dev = [
+    # "beanie<2",
+    "ipython>=9.4.0",
+    "mongomock-motor>=0.0.36",
+    "mypy>=1.17.0",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-cov>=6.2.1",
+    "pytest-timeout>=2.4.0",
+    "ruff>=0.12.5",
+    "ty>=0.0.1a21",
+    "types-aiofiles",
+]
+
+[tool.ruff]
+line-length = 88         # Black's default line length
+target-version = "py313"
+fix = true
+# unsafe-fixes = true
+preview = true
+
+[tool.ruff.lint]
+select = [
+    "F",     # Pyflakes: critical errors and unused code
+    "E",     # Pyflakes: errors
+    "W",     # PEP8: formatting issues
+    "I",     # isort: import sorting
+    "UP",    # pyupgrade: modern syntax
+    "B",     # bugbear: potential bugs
+    "T",     # debugger / print statement checks
+    "C",     # complexity: complexity checking
+    "A",     # avoids shadowing Python built-ins
+    "ASYNC", # async/await syntax
+    "SIM",   # simplify: cleaner code
+    "PERF",  # performance optimizations
+    "TRY",   # better try/excepts
+    "N",     # naming conventions
+    "S",     # security checks
+    "ANN",   # type annotation checks
+    "T20", # no print()
+    "C4",  # comprehension: better loops
+    "COM", # enforces trailing commas where needed.
+    "EXE", # executable: executable checking
+    "ISC", # implicit string concatenation
+    "G",   # misuse of logging string interpolation
+    "D",     # docstrings: docstring checking
+    # "ERA", # remove commented code
+    "RUF", # ruff-specific improvements
+]
+ignore = ["TRY003", "COM812", "B008", "D203", "D212"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["G004", "S101", "S105", "S106", "B017"]
+"server/db.py" = ["TRY"]
+"apps/tenant/messaging/channels/sms.py" = ["ERA001"]
+
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+check_untyped_defs = false
+disallow_untyped_defs = false
+disable_error_code = ["override"]
+
+[tool.ty.rules]
+# unresolved-attribute = "ignore"
+# unresolved-import = "ignore"
+# division-by-zero = "warn"
+# deprecated = "error"
