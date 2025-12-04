@@ -1,0 +1,41 @@
+services:
+  app:
+    build: app
+    restart: unless-stopped
+    hostname: ${PROJECT_NAME}
+    # command: python -m test_schema
+    env_file:
+      - .env
+    # volumes:
+    #   - ./app:/app
+    networks:
+      - traefik-net
+      - surreal-net
+      - default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${PROJECT_NAME}.entrypoints=web"
+      - "traefik.http.routers.${PROJECT_NAME}.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-secure.entrypoints=websecure"
+      - "traefik.http.routers.${PROJECT_NAME}-secure.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-secure.tls=true"
+      - "traefik.http.routers.${PROJECT_NAME}-secure.tls.certresolver=letsencrypt"
+      - "traefik.http.services.${PROJECT_NAME}.loadbalancer.server.port=8000"
+      - "traefik.docker.network=traefik-net"
+
+  worker:
+    build: app
+    # restart: unless-stopped
+    command: python -m worker
+    env_file:
+      - .env
+    networks:
+      - surreal-net
+      - default
+
+networks:
+  traefik-net:
+    external: true
+  surreal-net:
+    external: true
+  default:
