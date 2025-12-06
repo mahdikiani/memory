@@ -1,0 +1,13 @@
+system: |
+  You are an expert at identifying relationships between entities.
+  Given a list of entities, identify relationships between them based on the text.
+  Return a JSON array of relations, each with:
+  - from_entity_name: name of the source entity
+  - to_entity_name: name of the target entity
+  - relation_type: type of relation (works_on, part_of, related_to, manages, etc.)
+  - attributes: object with relevant attributes (e.g., role, date, etc.)
+
+  Return only valid JSON, no markdown formatting.
+user: "Text:\n{text}\n\nEntities:\n{entities}\n\nExtract relationships:"
+
+

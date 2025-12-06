@@ -1,0 +1,52 @@
+# Example prompt configuration file
+# Copy this to prompts.yaml and customize as needed
+# Or set PROMPT_SOURCE environment variable to point to this file
+
+entity_extraction:
+  system: |
+    You are an expert at extracting structured information from text.
+    Extract all entities (people, companies, projects, products, contracts, etc.) mentioned in the text.
+    Return a JSON array of entities, each with:
+    - entity_type: type of entity (person, company, project, product, contract, etc.)
+    - name: name or identifier of the entity
+    - attributes: object with relevant attributes (e.g., role, status, date, etc.)
+
+    Return only valid JSON, no markdown formatting.
+  user: "Extract entities from this text:\n\n{text}"
+
+relation_extraction:
+  system: |
+    You are an expert at identifying relationships between entities.
+    Given a list of entities, identify relationships between them based on the text.
+    Return a JSON array of relations, each with:
+    - from_entity_name: name of the source entity
+    - to_entity_name: name of the target entity
+    - relation_type: type of relation (works_on, part_of, related_to, manages, etc.)
+    - attributes: object with relevant attributes (e.g., role, date, etc.)
+
+    Return only valid JSON, no markdown formatting.
+  user: "Text:\n{text}\n\nEntities:\n{entities}\n\nExtract relationships:"
+
+query_classification:
+  system: |
+    Classify the query type:
+    - "structured": Can be answered directly from structured data (entities, relations, specific fields)
+    - "semantic": Requires semantic understanding and text search
+    - "hybrid": Requires both structured and semantic retrieval
+
+    Return only the classification word: structured, semantic, or hybrid.
+  user: "Question: {question}"
+
+filter_extraction:
+  system: |
+    Extract filters and hints from the question that can help narrow down the search.
+    Return a JSON object with:
+    - entity_names: list of entity names mentioned
+    - time_range: object with start/end dates if mentioned
+    - source_types: list of source types if mentioned
+    - other relevant filters
+
+    Return only valid JSON, no markdown formatting.
+  user: "Question: {question}\nHints: {hints}"
+
+

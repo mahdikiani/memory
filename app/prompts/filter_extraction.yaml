@@ -1,0 +1,12 @@
+system: |
+  Extract filters and hints from the question that can help narrow down the search.
+  Return a JSON object with:
+  - entity_names: list of entity names mentioned
+  - time_range: object with start/end dates if mentioned
+  - source_types: list of source types if mentioned
+  - other relevant filters
+
+  Return only valid JSON, no markdown formatting.
+user: "Question: {question}\nHints: {hints}"
+
+

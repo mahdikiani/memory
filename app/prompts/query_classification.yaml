@@ -1,0 +1,10 @@
+system: |
+  Classify the query type:
+  - "structured": Can be answered directly from structured data (entities, relations, specific fields)
+  - "semantic": Requires semantic understanding and text search
+  - "hybrid": Requires both structured and semantic retrieval
+
+  Return only the classification word: structured, semantic, or hybrid.
+user: "Question: {question}"
+
+

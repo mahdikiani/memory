@@ -53,7 +53,10 @@ class Settings(config.Settings):
         log_config = {
             "formatters": {
                 "standard": {
-                    "format": "[{levelname} {name} : {filename}:{lineno} : {asctime} -> {funcName:10}] {message}",  # noqa: E501
+                    "format": (
+                        "[{levelname} {name} : {filename}:{lineno} : {asctime} "
+                        "-> {funcName:10}] {message}"
+                    ),
                     "style": "{",
                 }
             },
