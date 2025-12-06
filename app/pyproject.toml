@@ -5,14 +5,17 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "aiofiles>=25.1.0",
     "fastapi>=0.123.7",
     "fastapi-mongo-base>=1.0.43",
     "httpx>=0.28.1",
     "langchain>=1.1.2",
     "langchain-community>=0.4.1",
     "langchain-openai>=1.1.0",
+    "langchain-text-splitters>=0.3.0",
     "openai>=2.9.0",
     "pydantic>=2.12.5",
+    "pyyaml>=6.0.1",
     "redis>=7.1.0",
     "surrealdb>=1.0.7",
 ]

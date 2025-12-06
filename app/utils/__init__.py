@@ -1,1 +1,1 @@
-"""Utility functions for the knowledge service."""
+"""Utility functions for the memory service."""

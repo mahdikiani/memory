@@ -1,4 +1,4 @@
-"""Worker for the knowledge service."""
+"""Worker for the memory service."""
 
 import logging
 

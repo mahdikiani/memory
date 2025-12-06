@@ -267,9 +267,9 @@ def get_models_and_indexes() -> tuple[
     """Get models and indexes configuration dynamically from Field metadata."""
     from fastapi_mongo_base.utils import basic
 
-    from apps.base.schemas import SurrealTenantSchema
+    from apps.base.models import BaseSurrealTenantEntity
 
-    model_classes = basic.get_all_subclasses(SurrealTenantSchema)
+    model_classes = basic.get_all_subclasses(BaseSurrealTenantEntity)
     models = {camel_to_kebab(model.__name__): model for model in model_classes}
 
     # Extract indexes dynamically from each model
@@ -295,7 +295,30 @@ async def init_schema(surreal_db: AsyncSurrealConnection) -> None:
         logger.debug("Defining table: %s", table_name)
         await surreal_db.query(schema)
 
+    # Define custom functions
+    await _define_custom_functions(surreal_db)
+
     logger.info("SurrealDB schema initialized successfully")
+
+
+async def _define_custom_functions(surreal_db: AsyncSurrealConnection) -> None:
+    """Define custom SurrealDB functions."""
+    import logging
+    from pathlib import Path
+
+    import aiofiles
+
+    logger = logging.getLogger(__name__)
+
+    # Define cosine similarity function
+    async with aiofiles.open(
+        Path(__file__).parent / "surreal_files" / "cossine_function.sql"
+    ) as f:
+        cosine_similarity_function = await f.read()
+
+    logger.debug("Defining cosine_similarity function")
+    await surreal_db.query(cosine_similarity_function)
+    logger.info("Custom functions defined successfully")
 
 
 def generate_schemas_file() -> str:

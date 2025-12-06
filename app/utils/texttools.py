@@ -1,4 +1,4 @@
-"""Text tools for the knowledge service."""
+"""Text tools for the memory service."""
 
 import re
 

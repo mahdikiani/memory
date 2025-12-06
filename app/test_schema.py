@@ -4,18 +4,12 @@ import asyncio
 import logging
 import sys
 
-from apps.knowledge.schemas import (
-    Entity,
-    IngestJob,
-    KnowledgeChunk,
-    KnowledgeSource,
-    Relation,
-)
+from apps.memory.models import Entity, KnowledgeChunk, KnowledgeSource, Relation
 from server.config import Settings
 from server.db import DatabaseManager
 from server.schema_generator import _quote_identifier, get_models_and_indexes
 
-__all__ = ["Entity", "IngestJob", "KnowledgeChunk", "KnowledgeSource", "Relation"]
+__all__ = ["Entity", "KnowledgeChunk", "KnowledgeSource", "Relation"]
 
 logging.basicConfig(
     level=logging.INFO,

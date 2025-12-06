@@ -1,5 +1,5 @@
 """
-Prompts package for the knowledge service.
+Prompts package for the memory service.
 
 Extract prompts from external sources.
 - File system

@@ -1,4 +1,4 @@
-"""Main entry point for the knowledge service."""
+"""Main entry point for the memory service."""
 
 import asyncio
 import logging

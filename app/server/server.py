@@ -1,4 +1,4 @@
-"""FastAPI server for the knowledge service."""
+"""FastAPI server for the memory service."""
 
 import logging
 from collections.abc import AsyncGenerator

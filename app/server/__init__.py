@@ -1,1 +1,1 @@
-"""Knowledge service server module."""
+"""Memory service server module."""
