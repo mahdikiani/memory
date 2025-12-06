@@ -9,9 +9,9 @@ class IngestRequest(BaseModel):
     """Request model for knowledge ingestion."""
 
     tenant_id: str = Field(..., description="Tenant/organization ID")
-    source_type: Literal[
-        "document", "meeting", "calendar", "task", "crm", "chat"
-    ] = Field(..., description="Type of knowledge source")
+    source_type: Literal["document", "meeting", "calendar", "task", "crm", "chat"] = (
+        Field(..., description="Type of knowledge source")
+    )
     source_id: str = Field(..., description="External ID from the sensor/service")
     sensor_name: str | None = Field(
         None, description="Name of the sensor/service that created this data"

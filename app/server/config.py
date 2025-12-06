@@ -34,6 +34,10 @@ class Settings(config.Settings):
     llm_model: str = os.getenv("LLM_MODEL", "google/gemini-2.5-flash")
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "openai/text-embedding-3-small")
 
+    prompt_source: str | None = os.getenv(
+        "PROMPT_SOURCE", None
+    )  # File path or API URL for prompts
+
     coverage_dir: Path = base_dir / "htmlcov"
 
     @classmethod
