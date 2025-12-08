@@ -4,13 +4,11 @@ import logging
 
 from server.db import db_manager
 
-from ...utils.entity_service import EntityService
+from ...utils.entity_service import upsert_entity
 from ...utils.tenant_config_service import get_tenant_entity_types_async
-from ..models import ExtractedEntity
+from ..schemas import ExtractedEntity
 
 logger = logging.getLogger(__name__)
-
-_entity_service = EntityService()
 
 
 async def filter_entities_by_tenant_config(
@@ -75,7 +73,7 @@ async def save_entities(
     for extracted_entity in filtered_entities:
         try:
             # Convert ExtractedEntity to Entity and save
-            entity_id = await _entity_service.upsert_entity(
+            entity_id = await upsert_entity(
                 tenant_id=tenant_id,
                 entity_type=extracted_entity.entity_type,
                 name=extracted_entity.name,

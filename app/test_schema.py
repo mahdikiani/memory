@@ -4,10 +4,11 @@ import asyncio
 import logging
 import sys
 
+from server.schema_generator import _quote_identifier, get_models_and_indexes
+
 from apps.memory.models import Entity, KnowledgeChunk, KnowledgeSource, Relation
 from server.config import Settings
 from server.db import DatabaseManager
-from server.schema_generator import _quote_identifier, get_models_and_indexes
 
 __all__ = ["Entity", "KnowledgeChunk", "KnowledgeSource", "Relation"]
 

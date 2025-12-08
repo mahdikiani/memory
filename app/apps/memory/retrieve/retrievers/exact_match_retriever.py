@@ -5,8 +5,9 @@ import logging
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 
+from db import execute_exact_match_query
+
 from ...models import Entity, KnowledgeChunk, KnowledgeSource
-from ...utils.query_executor import execute_exact_match_query
 
 logger = logging.getLogger(__name__)
 

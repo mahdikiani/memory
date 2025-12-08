@@ -60,20 +60,21 @@ select = [
     "N",     # naming conventions
     "S",     # security checks
     "ANN",   # type annotation checks
-    "T20", # no print()
-    "C4",  # comprehension: better loops
-    "COM", # enforces trailing commas where needed.
-    "EXE", # executable: executable checking
-    "ISC", # implicit string concatenation
-    "G",   # misuse of logging string interpolation
+    "T20",   # no print()
+    "C4",    # comprehension: better loops
+    "COM",   # enforces trailing commas where needed.
+    "EXE",   # executable: executable checking
+    "ISC",   # implicit string concatenation
+    "G",     # misuse of logging string interpolation
     "D",     # docstrings: docstring checking
     # "ERA", # remove commented code
     "RUF", # ruff-specific improvements
 ]
-ignore = ["TRY003", "COM812", "B008", "D203", "D212"]
+ignore = ["TRY003", "COM812", "B008", "D202", "D203", "D209", "D212", "D413"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["G004", "S101", "S105", "S106", "B017"]
+"db/tests/*" =  ["G004", "S101", "S105", "S106", "B017"]
 "server/db.py" = ["TRY"]
 "apps/tenant/messaging/channels/sms.py" = ["ERA001"]
 

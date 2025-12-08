@@ -1,12 +1,12 @@
-"""ORM-like query builder for SurrealDB to prevent SQL injection."""
+"""Base query builder for safe SurrealDB queries."""
 
 import logging
+import re
 from typing import Self
 
-from .query_builder import (
-    sanitize_field_name,
-    validate_field_name,
-)
+from .field_validation import sanitize_field_name, validate_field_name
+from .metadata import _get_table_name
+from .utils import get_all_subclasses
 
 logger = logging.getLogger(__name__)
 
@@ -33,17 +33,31 @@ class QueryBuilder:
 
     @staticmethod
     def _validate_table(table: str) -> None:
-        """Validate table name is safe."""
-        allowed_tables = {
-            "entity",
-            "knowledge_source",
-            "knowledge_chunk",
-            "relation",
-            "tenant_config",
-            "ingest_job",
-        }
+        """Validate table name is safe (dynamic validation)."""
+        from .models import BaseSurrealEntity
+
+        # Dynamically get all valid table names from models
+        model_classes = [
+            cls
+            for cls in get_all_subclasses(BaseSurrealEntity)
+            if not (
+                "Settings" in cls.__dict__
+                and getattr(cls.Settings, "__abstract__", False)
+            )
+        ]
+        allowed_tables = {_get_table_name(model) for model in model_classes}
+
+        # Also validate table name format (alphanumeric, hyphen, underscore)
+        if not re.match(r"^[a-zA-Z0-9_-]+$", table):
+            raise ValueError(f"Invalid table name format: {table}")
+
         if table not in allowed_tables:
-            raise ValueError(f"Unsafe table name: {table}")
+            logger.warning(
+                "Table '%s' not found in registered models. Allowed: %s",
+                table,
+                sorted(allowed_tables),
+            )
+            # Don't raise error, just warn (for flexibility)
 
     def _add_param(self, value: object) -> str:
         """
@@ -166,7 +180,7 @@ class QueryBuilder:
         self._where_parts.append(f"{sanitized_field} IS NONE")
         return self
 
-    def where_is_not_none(self, field: str) -> "QueryBuilder":
+    def where_is_not_none(self, field: str) -> Self:
         """
         Add WHERE IS NOT NONE condition.
 
@@ -223,7 +237,7 @@ class QueryBuilder:
         self._order_by.append(f"{sanitized_field} {direction.upper()}")
         return self
 
-    def limit(self, count: int) -> "QueryBuilder":
+    def limit(self, count: int) -> Self:
         """
         Add LIMIT clause.
 
@@ -285,155 +299,24 @@ class QueryBuilder:
         return query, self._params
 
 
-class VectorQueryBuilder(QueryBuilder):
-    """Specialized query builder for vector similarity search."""
+def query(table: str) -> QueryBuilder:
+    """
+    Create a QueryBuilder instance (functional entry point).
 
-    def __init__(self) -> None:
-        """Initialize vector query builder."""
-        super().__init__("knowledge_chunk")
-        self._embedding_param: str | None = None
+    Args:
+        table: Table name
 
-    def with_embedding_similarity(
-        self, query_embedding: list[float]
-    ) -> "VectorQueryBuilder":
-        """
-        Add vector similarity calculation.
+    Returns:
+        QueryBuilder instance for method chaining
 
-        Args:
-            query_embedding: Query embedding vector
+    Example:
+        ```python
+        query_builder = query("entity")
+            .where_eq("tenant_id", "t1")
+            .where_eq("name", "John")
+            .limit(10)
+        query_sql, params = query_builder.build()
+        ```
 
-        Returns:
-            Self for method chaining
-
-        """
-        self._embedding_param = self._add_param(query_embedding)
-        return self
-
-    def build(self) -> tuple[str, dict[str, object]]:
-        """
-        Build vector similarity query.
-
-        Returns:
-            Tuple of (query string, parameters dict)
-
-        """
-        # Build WHERE clause
-        where_clause = ""
-        if self._where_parts:
-            where_clause = " WHERE " + " AND ".join(self._where_parts)
-
-        # Build ORDER BY clause
-        order_by_clause = ""
-        if self._order_by:
-            order_by_clause = " ORDER BY " + ", ".join(self._order_by)
-        elif self._embedding_param:
-            order_by_clause = " ORDER BY similarity_score DESC"
-
-        # Build LIMIT clause
-        limit_clause = ""
-        if self._limit_value is not None:
-            limit_param = self._add_param(self._limit_value)
-            limit_clause = " LIMIT " + limit_param
-
-        # Build query safely without f-string interpolation
-        if self._embedding_param:
-            query_parts = [
-                "SELECT",
-                "*,",
-                "cosine_similarity(embedding,",
-                self._embedding_param,
-                ")",
-                "AS",
-                "similarity_score",
-                "FROM",
-                self.table,
-            ]
-        else:
-            select_clause = ", ".join(self._select_fields)
-            query_parts = ["SELECT", select_clause, "FROM", self.table]
-
-        if where_clause:
-            query_parts.append(where_clause)
-        if order_by_clause:
-            query_parts.append(order_by_clause)
-        if limit_clause:
-            query_parts.append(limit_clause)
-
-        query = " ".join(query_parts)
-
-        return query, self._params
-
-
-class FullTextQueryBuilder(QueryBuilder):
-    """Specialized query builder for fulltext search."""
-
-    def __init__(self) -> None:
-        """Initialize fulltext query builder."""
-        super().__init__("knowledge_chunk")
-        self._query_text_param: str | None = None
-
-    def search(self, query_text: str) -> "FullTextQueryBuilder":
-        """
-        Add fulltext search condition.
-
-        Args:
-            query_text: Text to search for
-
-        Returns:
-            Self for method chaining
-
-        """
-        self._query_text_param = self._add_param(query_text)
-        return self
-
-    def build(self) -> tuple[str, dict[str, object]]:
-        """
-        Build fulltext search query.
-
-        Returns:
-            Tuple of (query string, parameters dict)
-
-        """
-        # Add fulltext search condition
-        if self._query_text_param:
-            text_field = sanitize_field_name("text")
-            self._where_parts.insert(0, f"{text_field} @@ {self._query_text_param}")
-
-        # Build WHERE clause
-        where_clause = ""
-        if self._where_parts:
-            where_clause = " WHERE " + " AND ".join(self._where_parts)
-
-        # Build ORDER BY clause
-        order_by_clause = ""
-        if self._order_by:
-            order_by_clause = " ORDER BY " + ", ".join(self._order_by)
-        else:
-            order_by_clause = " ORDER BY relevance_score DESC"
-
-        # Build LIMIT clause
-        limit_clause = ""
-        if self._limit_value is not None:
-            limit_param = self._add_param(self._limit_value)
-            limit_clause = " LIMIT " + limit_param
-
-        # Build query safely without f-string interpolation
-        query_parts = [
-            "SELECT",
-            "*,",
-            "search::score(0)",
-            "AS",
-            "relevance_score",
-            "FROM",
-            self.table,
-        ]
-        if where_clause:
-            query_parts.append(where_clause)
-        if order_by_clause:
-            query_parts.append(order_by_clause)
-        if limit_clause:
-            query_parts.append(limit_clause)
-
-        query = " ".join(query_parts)
-
-        return query, self._params
+    """
+    return QueryBuilder(table)

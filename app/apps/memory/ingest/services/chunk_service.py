@@ -4,7 +4,7 @@ import logging
 
 from server.db import db_manager
 
-from ..models import KnowledgeChunk
+from ...models import KnowledgeChunk
 
 logger = logging.getLogger(__name__)
 

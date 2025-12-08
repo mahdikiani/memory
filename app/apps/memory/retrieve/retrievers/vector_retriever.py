@@ -5,11 +5,11 @@ import logging
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 
+from db import execute_query, execute_vector_query
 from server.config import Settings
 
 from ...models import KnowledgeChunk
-from ...utils.embedding_service import EmbeddingService
-from ...utils.query_executor import execute_query, execute_vector_query
+from ...utils.embedding_service import generate_embedding
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class VectorRetriever(BaseRetriever):
         self.tenant_id = tenant_id
         self.filters = filters or {}
         self.limit = limit
-        self.embedding_service = EmbeddingService(settings)
+        self.settings = settings
 
     async def _aget_relevant_documents(
         self, query: str, *, run_manager: object | None = None
@@ -58,7 +58,7 @@ class VectorRetriever(BaseRetriever):
 
         try:
             # Generate embedding for query
-            query_embedding = await self.embedding_service.generate_embedding(query)
+            query_embedding = await generate_embedding(query, settings=self.settings)
 
             # Search using vector similarity with safe parameterized query
             rows = await execute_vector_query(
@@ -91,13 +91,13 @@ class VectorRetriever(BaseRetriever):
 
     async def _fallback_vector_search(self, query: str) -> list[Document]:
         """Fallback using cosine_similarity function in SurrealDB."""
-        from ...utils.query_builder_orm import VectorQueryBuilder
+        from db import VectorQueryBuilder
 
         documents: list[Document] = []
 
         try:
             # Generate embedding
-            query_embedding = await self.embedding_service.generate_embedding(query)
+            query_embedding = await generate_embedding(query, settings=self.settings)
 
             # Use VectorQueryBuilder which uses cosine_similarity function in DB
             query_builder = (

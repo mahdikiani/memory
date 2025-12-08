@@ -1,31 +1,18 @@
-"""Safe query builder for SurrealDB to prevent SQL injection."""
+"""Field name validation and sanitization for safe queries."""
 
 import logging
 import re
 
-logger = logging.getLogger(__name__)
+from .metadata import _get_allowed_fields
 
-# Whitelist of allowed field names to prevent injection through field names
-ALLOWED_FIELDS = {
-    "tenant_id",
-    "is_deleted",
-    "source_id",
-    "source_type",
-    "sensor_name",
-    "entity_type",
-    "name",
-    "relation_type",
-    "from_entity_id",
-    "to_entity_id",
-    "chunk_index",
-    "text",
-    "embedding",
-}
+logger = logging.getLogger(__name__)
 
 
 def validate_field_name(field: str) -> bool:
     """
     Validate that a field name is safe to use in queries.
+
+    Uses dynamic discovery from Pydantic models + pattern-based fallback.
 
     Args:
         field: Field name to validate
@@ -34,13 +21,17 @@ def validate_field_name(field: str) -> bool:
         True if field is safe, False otherwise
 
     """
-    # Check if field is in whitelist
-    if field in ALLOWED_FIELDS:
+    # First check dynamic whitelist from models
+    allowed_fields = _get_allowed_fields()
+    if field in allowed_fields:
         return True
 
-    # Allow field names that match identifier pattern (alphanumeric + underscore)
+    # Fallback: Allow field names that match identifier pattern
+    # (alphanumeric + underscore, starting with letter/underscore)
     if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", field):
-        logger.warning("Field '%s' not in whitelist, but matches safe pattern", field)
+        logger.warning(
+            "Field '%s' not found in model fields, but matches safe pattern", field
+        )
         return True
 
     logger.error("Unsafe field name detected: %s", field)

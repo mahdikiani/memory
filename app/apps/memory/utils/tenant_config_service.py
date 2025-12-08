@@ -2,9 +2,9 @@
 
 import logging
 
-from apps.memory.shared.models import TenantConfig
-
 from server.db import db_manager
+
+from ..models import Tenant
 
 logger = logging.getLogger(__name__)
 
@@ -19,15 +19,15 @@ DEFAULT_ALLOWED_SOURCE_TYPES = [
 ]
 
 # In-memory cache for tenant configs (populated async, accessed sync)
-_tenant_config_cache: dict[str, TenantConfig] = {}
+_tenant_config_cache: dict[str, Tenant] = {}
 
 
-def _get_cached_tenant_config(tenant_id: str) -> TenantConfig | None:
+def _get_cached_tenant_config(tenant_id: str) -> Tenant | None:
     """Get tenant config from in-memory cache (synchronous)."""
     return _tenant_config_cache.get(tenant_id)
 
 
-def _set_cached_tenant_config(tenant_id: str, config: TenantConfig) -> None:
+def _set_cached_tenant_config(tenant_id: str, config: Tenant) -> None:
     """Set tenant config in in-memory cache (synchronous)."""
     _tenant_config_cache[tenant_id] = config
 
@@ -40,7 +40,7 @@ def _clear_tenant_config_cache(tenant_id: str | None = None) -> None:
         _tenant_config_cache.clear()
 
 
-async def load_tenant_config(tenant_id: str) -> TenantConfig:
+async def load_tenant_config(tenant_id: str) -> Tenant:
     """
     Load tenant configuration from database (async).
 
@@ -50,7 +50,7 @@ async def load_tenant_config(tenant_id: str) -> TenantConfig:
         db = db_manager.get_db()
         result = await db.select(f"tenant_config:{tenant_id}")
         if result:
-            config = TenantConfig(**result)
+            config = Tenant(**result)
             _set_cached_tenant_config(tenant_id, config)
             return config
     except Exception as e:
@@ -59,7 +59,7 @@ async def load_tenant_config(tenant_id: str) -> TenantConfig:
         )
 
     # Return default config if not found
-    config = TenantConfig(
+    config = Tenant(
         tenant_id=tenant_id,
         allowed_source_types=DEFAULT_ALLOWED_SOURCE_TYPES,
     )
@@ -67,7 +67,7 @@ async def load_tenant_config(tenant_id: str) -> TenantConfig:
     return config
 
 
-def get_tenant_config(tenant_id: str) -> TenantConfig | None:
+def get_tenant_config(tenant_id: str) -> Tenant | None:
     """
     Get tenant configuration from cache (synchronous).
 
@@ -77,7 +77,7 @@ def get_tenant_config(tenant_id: str) -> TenantConfig | None:
     return _get_cached_tenant_config(tenant_id)
 
 
-async def get_tenant_config_async(tenant_id: str) -> TenantConfig:
+async def get_tenant_config_async(tenant_id: str) -> Tenant:
     """
     Get tenant configuration asynchronously (bypasses cache).
 
@@ -87,14 +87,14 @@ async def get_tenant_config_async(tenant_id: str) -> TenantConfig:
         db = db_manager.get_db()
         result = await db.select(f"tenant_config:{tenant_id}")
         if result:
-            return TenantConfig(**result)
+            return Tenant(**result)
     except Exception as e:
         logger.warning(
             "Failed to load tenant config for %s: %s. Using defaults.", tenant_id, e
         )
 
     # Return default config if not found
-    return TenantConfig(
+    return Tenant(
         tenant_id=tenant_id,
         source_types=DEFAULT_ALLOWED_SOURCE_TYPES,
     )
@@ -161,14 +161,14 @@ async def create_or_update_tenant_config(
     source_types: list[str] | None = None,
     entity_types: list[str] | None = None,
     relation_types: list[str] | None = None,
-) -> TenantConfig:
+) -> Tenant:
     """Create or update tenant configuration."""
     db = db_manager.get_db()
 
     # Get existing config or create new
     existing = await db.select(f"tenant_config:{tenant_id}")
     if existing:
-        config = TenantConfig(**existing)
+        config = Tenant(**existing)
         if source_types is not None:
             config.source_types = source_types
         if entity_types is not None:
@@ -176,7 +176,7 @@ async def create_or_update_tenant_config(
         if relation_types is not None:
             config.relation_types = relation_types
     else:
-        config = TenantConfig(
+        config = Tenant(
             tenant_id=tenant_id,
             source_types=source_types or DEFAULT_ALLOWED_SOURCE_TYPES,
             entity_types=entity_types,
@@ -189,7 +189,7 @@ async def create_or_update_tenant_config(
     )
 
     # Update cache
-    updated_config = TenantConfig(**result)
+    updated_config = Tenant(**result)
     _set_cached_tenant_config(tenant_id, updated_config)
 
     return updated_config

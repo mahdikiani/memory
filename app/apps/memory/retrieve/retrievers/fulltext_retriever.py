@@ -5,8 +5,9 @@ import logging
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 
+from db import execute_fulltext_query
+
 from ...models import KnowledgeChunk
-from ...utils.query_executor import execute_fulltext_query
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +85,7 @@ class FullTextRetriever(BaseRetriever):
 
     async def _fallback_like_search(self, query_text: str) -> list[Document]:
         """Fallback to LIKE-based search with safe parameterization."""
-        from ...utils.query_executor import execute_query
+        from db import execute_query, query
 
         documents: list[Document] = []
 
@@ -93,7 +94,6 @@ class FullTextRetriever(BaseRetriever):
         # Add text filter for LIKE search
 
         # Build query using ORM-like builder (no string interpolation!)
-        from ...utils.query_builder_orm import query
 
         query_builder = (
             query("knowledge_chunk")

@@ -2,26 +2,21 @@
 
 from typing import Self
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
-from ..base.models import BaseSurrealTenantEntity
-from .utils.tenant_config_service import (
-    get_tenant_entity_types,
-    get_tenant_relation_types,
-    get_tenant_source_types,
-)
+from db.models import BaseSurrealTenantEntity
 
 
-class TenantConfig(BaseSurrealTenantEntity):
+class Tenant(BaseSurrealTenantEntity):
     """Tenant configuration model for storing tenant-specific settings."""
 
     source_types: list[str] = Field(
         default_factory=lambda: [
             "document",
             "meeting",
-            "calendar",
-            "task",
-            "crm",
+            # "calendar",
+            # "task",
+            # "crm",
             "chat",
         ],
         description="List of allowed source types for this tenant",
@@ -56,6 +51,11 @@ class KnowledgeSource(BaseSurrealTenantEntity):
     @model_validator(mode="after")
     def validate_source_type(self) -> Self:
         """Validate source_type against tenant configuration."""
+
+        from .utils.tenant_config_service import (
+            get_tenant_source_types,
+        )
+
         allowed_types = get_tenant_source_types(self.tenant_id)
         if self.source_type not in allowed_types:
             msg = (
@@ -75,16 +75,30 @@ class KnowledgeChunk(BaseSurrealTenantEntity):
         json_schema_extra={"surreal_index": "idx_tenant_source"},
     )
     chunk_index: int = Field(..., description="Index of chunk within source")
-    text: str = Field(..., description="Chunk text content")
+    text: str = Field(
+        ...,
+        description="Chunk text content",
+        json_schema_extra={
+            "surreal_index": "idx_tenant_embedding",
+            "surreal_fulltext_field": True,
+        },
+    )
     embedding: list[float] | None = Field(
         None,
         description="Vector embedding",
-        json_schema_extra={"surreal_index": "idx_tenant_embedding"},
+        json_schema_extra={
+            "surreal_index": "idx_tenant_embedding",
+            "surreal_vector_field": True,
+        },
     )
 
 
 class Entity(BaseSurrealTenantEntity):
     """Entity model for knowledge graph."""
+
+    model_config = ConfigDict(
+        json_schema_extra={"surreal_graph_node": True},
+    )
 
     entity_type: str = Field(
         ...,
@@ -110,6 +124,11 @@ class Entity(BaseSurrealTenantEntity):
     @model_validator(mode="after")
     def validate_entity_type(self) -> Self:
         """Validate entity_type against tenant configuration."""
+
+        from .utils.tenant_config_service import (
+            get_tenant_entity_types,
+        )
+
         allowed_types = get_tenant_entity_types(self.tenant_id)
         if allowed_types is not None and self.entity_type not in allowed_types:
             msg = (
@@ -122,6 +141,10 @@ class Entity(BaseSurrealTenantEntity):
 
 class Relation(BaseSurrealTenantEntity):
     """Relation model for knowledge graph edges."""
+
+    model_config = ConfigDict(
+        json_schema_extra={"surreal_graph_edge": True},
+    )
 
     from_entity_id: str = Field(
         ...,
@@ -152,6 +175,11 @@ class Relation(BaseSurrealTenantEntity):
     @model_validator(mode="after")
     def validate_relation_type(self) -> Self:
         """Validate relation_type against tenant configuration."""
+
+        from .utils.tenant_config_service import (
+            get_tenant_relation_types,
+        )
+
         allowed_types = get_tenant_relation_types(self.tenant_id)
         if allowed_types is not None and self.relation_type not in allowed_types:
             msg = (

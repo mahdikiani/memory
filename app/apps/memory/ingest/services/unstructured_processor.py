@@ -9,8 +9,8 @@ from ...utils.tenant_config_service import (
     get_tenant_entity_types_async,
     get_tenant_relation_types_async,
 )
-from ..chain import IngestionChain
-from ..models import ExtractedEntity, ExtractedRelation
+from ..chain import process_text
+from ..schemas import ExtractedEntity, ExtractedRelation
 from ..text_processor import TextProcessor
 
 logger = logging.getLogger(__name__)
@@ -52,9 +52,12 @@ async def process_unstructured(
     allowed_entity_types = await get_tenant_entity_types_async(tenant_id)
     allowed_relation_types = await get_tenant_relation_types_async(tenant_id)
 
-    ingestion_chain = IngestionChain(settings)
-    extraction_result = await ingestion_chain.process_text(
-        content, tenant_id, allowed_entity_types, allowed_relation_types
+    extraction_result: dict[str, list[dict[str, object]] | object] = await process_text(
+        content,
+        tenant_id,
+        allowed_entity_types,
+        allowed_relation_types,
+        settings,
     )
 
     # Step 3: Convert to ExtractedEntity and ExtractedRelation models

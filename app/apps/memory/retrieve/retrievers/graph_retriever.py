@@ -5,10 +5,10 @@ import logging
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 
+from db import execute_graph_query
 from server.db import db_manager
 
 from ...models import Entity, Relation
-from ...utils.query_executor import execute_graph_query
 
 logger = logging.getLogger(__name__)
 
@@ -167,32 +167,38 @@ class GraphRetriever(BaseRetriever):
 
         try:
             all_entities: list[Entity] = []
-            all_relations: list[Relation] = []
 
-            # Use safe parameterized query to get relations
-            relation_rows = await execute_graph_query(
+            # Use safe parameterized query to get entities with distance
+            entity_rows = await execute_graph_query(
                 self.tenant_id,
                 self.entity_ids,
                 self.relation_type,
-                self.max_depth * 10,
+                self.limit,
+                min_depth=1,
+                max_depth=self.max_depth,
+                order_by_distance=True,
             )
 
-            # Process relations and fetch related entities
-            for row in relation_rows:
-                relation = Relation(**row)
-                all_relations.append(relation)
-                await self._fetch_related_entities(relation, all_entities)
+            # Process entities (results already include distance)
+            for row in entity_rows:
+                try:
+                    entity = Entity(**row)
+                    if entity not in all_entities:
+                        all_entities.append(entity)
+                except Exception as e:
+                    logger.debug("Failed to parse entity from row: %s", e)
+                    continue
 
             # Convert to documents
             documents: list[Document] = []
-            documents.extend(
-                self._entity_to_document(entity)
-                for entity in all_entities[: self.limit]
-            )
-            documents.extend(
-                self._relation_to_document(relation)
-                for relation in all_relations[: self.limit]
-            )
+            for entity in all_entities[: self.limit]:
+                doc = self._entity_to_document(entity)
+                # Add distance to metadata if available
+                for row in entity_rows:
+                    if row.get("id") == entity.id and "distance" in row:
+                        doc.metadata["distance"] = row["distance"]
+                        break
+                documents.append(doc)
 
             logger.debug("Graph retriever found %d documents", len(documents))
             return documents[: self.limit]

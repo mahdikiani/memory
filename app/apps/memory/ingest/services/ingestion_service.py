@@ -6,16 +6,16 @@ from server.config import Settings
 
 from ..job_service import JobService
 from ..knowledge_source_service import KnowledgeSourceService
-from ..models import IngestionResult
 from ..processors.entity_processor import save_entities
 from ..processors.relation_processor import save_relations
-from ..services.chunk_service import save_chunks
-from ..services.preprocessor import preprocess_chunks
-from ..services.structured_processor import (
+from ..schemas import IngestionResult
+from .chunk_service import save_chunks
+from .preprocessor import preprocess_chunks
+from .structured_processor import (
     process_structured_entity,
     process_structured_relation,
 )
-from ..services.unstructured_processor import process_unstructured
+from .unstructured_processor import process_unstructured
 
 logger = logging.getLogger(__name__)
 

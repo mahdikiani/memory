@@ -7,6 +7,6 @@ Extract prompts from external sources.
 - Default prompts
 """
 
-from .prompt_service import PromptService
+from .services import PromptService
 
 __all__ = ["PromptService"]

@@ -1,18 +1,32 @@
 """FastAPI server configuration."""
 
 import dataclasses
+import json
+import logging.config
 import os
 from pathlib import Path
 
 import dotenv
-from fastapi_mongo_base.core import config
+from singleton import Singleton
 
 dotenv.load_dotenv()
 
 
 @dataclasses.dataclass
-class Settings(config.Settings):
+class Settings(metaclass=Singleton):
     """Server config settings."""
+
+    # base_dir: Path = Path(__file__).resolve().parent.parent
+    root_url: str = os.getenv("DOMAIN") or "http://localhost:8000"
+    project_name: str = os.getenv("PROJECT_NAME") or "PROJECT"
+    base_path: str = "/api/v1"
+    worker_update_time: int = int(os.getenv("WORKER_UPDATE_TIME", default=180)) or 180
+    debug: bool = os.getenv("DEBUG", default="false").lower() == "true"
+
+    _cors_origins_str: str | None = os.getenv("CORS_ORIGINS")
+
+    page_max_limit: int = 100
+    mongo_uri: str = os.getenv("MONGO_URI", default="mongodb://mongo:27017/")
 
     project_name: str = os.getenv("PROJECT_NAME", "memory")
     base_dir: Path = Path(__file__).resolve().parent.parent
@@ -39,6 +53,16 @@ class Settings(config.Settings):
     )  # File path or API URL for prompts
 
     coverage_dir: Path = base_dir / "htmlcov"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """Get the CORS origins."""
+
+        if self._cors_origins_str and "[" in self._cors_origins_str:
+            return json.loads(self._cors_origins_str)
+        elif self._cors_origins_str:
+            return [s.strip() for s in self._cors_origins_str.split(",")]
+        return ["http://localhost:8000"]
 
     @classmethod
     def get_log_config(cls, console_level: str = "INFO", **kwargs: object) -> dict:
@@ -86,3 +110,22 @@ class Settings(config.Settings):
             "version": 1,
         }
         return log_config
+
+    @classmethod
+    def get_coverage_dir(cls) -> str:
+        """Get the coverage directory."""
+
+        return getattr(cls, "base_dir", Path(".")) / "htmlcov"
+
+    @classmethod
+    def config_logger(cls) -> None:
+        """Configure the logger."""
+
+        log_config = cls.get_log_config()
+
+        if log_config["handlers"].get("file"):
+            (getattr(cls, "base_dir", Path(".")) / "logs").mkdir(
+                parents=True, exist_ok=True
+            )
+
+        logging.config.dictConfig(log_config)

@@ -1,10 +1,10 @@
-# Knowledge Service
+# Memory Service
 
-Multi-tenant **knowledge base** service for RAG (Retrieval-Augmented Generation).
+Multi-tenant **memory base** service for RAG (Retrieval-Augmented Generation).
 
-The service ingests structured and unstructured data (documents, events, entities), builds a **graph + vector** knowledge store on **SurrealDB**, and exposes APIs to retrieve relevant context for downstream LLMs.
+The service ingests structured and unstructured data (documents, events, entities), builds a **graph + vector** memory store on **SurrealDB**, and exposes APIs to retrieve relevant context for downstream LLMs.
 
-It is **not** an answer-bot; it is the **memory/knowledge layer** behind one.
+It is **not** an answer-bot; it is the **memory layer** behind one.
 
 ---
 
@@ -21,8 +21,8 @@ It is **not** an answer-bot; it is the **memory/knowledge layer** behind one.
 
 The service currently exposes two main RPC-style APIs (to be evolved to REST Maturity Level 2):
 
-1. `POST /knowledge/ingest` – new data arrives, is queued, understood, and stored.
-2. `POST /knowledge/retrieve` – a question arrives, relevant knowledge is fetched and returned for RAG.
+1. `POST /memory/ingest` – new data arrives, is queued, understood, and stored.
+2. `POST /memory/retrieve` – a question arrives, relevant memory is fetched and returned for RAG.
 
 ---
 
@@ -54,7 +54,7 @@ Repository layout (top-level):
     * `config.py` – environment, SurrealDB connection, queue config, etc.
     * `server.py` – FastAPI / Flask / other web framework setup.
 
-  * `apps/` – future logical modules (e.g. `knowledge`, ...).
+  * `apps/` – logical modules (e.g. `memory`, ...).
   * `pyproject.toml` – Python package & dependency configuration.
   * `Dockerfile` – container image for the app.
 
@@ -157,12 +157,12 @@ Vector search is always **filterable** by `tenant_id` and optionally by related 
 ### 1. Ingest API
 
 **Goal:**  
-Accept new knowledge (documents or structured payloads), enqueue it, and process it asynchronously into the knowledge base.
+Accept new memory (documents or structured payloads), enqueue it, and process it asynchronously into the memory base.
 
 **Endpoint:**
 
 ```http
-POST /knowledge/ingest
+POST /memory/ingest
 Content-Type: application/json
 ````
 
@@ -246,7 +246,7 @@ For structured/event ingest, steps 2–3 may be lighter (direct mapping + option
 ### 2. Retrieve API
 
 **Goal:**
-Given a natural language question (optionally with hints/filters), return the most relevant knowledge for that tenant:
+Given a natural language question (optionally with hints/filters), return the most relevant memory for that tenant:
 
 * structured entities / relations
 * text chunks (for semantic RAG)
@@ -256,7 +256,7 @@ This service does **not** generate the final natural-language answer; it supplie
 **Endpoint:**
 
 ```http
-POST /knowledge/retrieve
+POST /memory/retrieve
 Content-Type: application/json
 ```
 
@@ -400,11 +400,11 @@ This service stops at **context retrieval**; answer generation is a responsibili
 
 1. Define minimal SurrealDB schema for:
    * `tenant`, `person`, `company`, `project`, `contract`, `document`, `document_chunk`, `meeting`, `event`.
-2. Implement `POST /knowledge/ingest`:
+2. Implement `POST /memory/ingest`:
    * Basic validation.
    * Queue job creation.
    * Worker skeleton with a simple LangChain ingestion chain.
-3. Implement `POST /knowledge/retrieve`:
+3. Implement `POST /memory/retrieve`:
    * Basic vector retrieval for a tenant.
    * Add structured/graph queries.
    * Add hybrid retrieval logic.

@@ -1,10 +1,39 @@
 """Promptic Prompt Schemas."""
 
+from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Self
 
-from fastapi_mongo_base.schemas import BaseEntitySchema
+import uuid6
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+class BaseEntitySchema(BaseModel):
+    """Base entity schema for the promptic."""
+
+    uid: str = Field(
+        default_factory=lambda: str(uuid6.uuid7()),
+        json_schema_extra={"index": True, "unique": True},
+        description="Unique identifier for the entity",
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.tz),
+        json_schema_extra={"index": True},
+        description="Date and time the entity was created",
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.tz),
+        json_schema_extra={"index": True},
+        description="Date and time the entity was last updated",
+    )
+    is_deleted: bool = Field(
+        default=False,
+        description="Whether the entity has been deleted",
+    )
+    meta_data: dict | None = Field(
+        default=None,
+        description="Additional metadata for the entity",
+    )
 
 
 class Role(StrEnum):

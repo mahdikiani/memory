@@ -4,17 +4,14 @@ import logging
 
 from server.db import db_manager
 
-from ...utils.entity_service import EntityService
-from ...utils.relation_service import RelationService
+from ...utils.entity_service import upsert_entity
+from ...utils.relation_service import create_relation
 from ...utils.tenant_config_service import (
     get_tenant_entity_types_async,
     get_tenant_relation_types_async,
 )
 
 logger = logging.getLogger(__name__)
-
-_entity_service = EntityService()
-_relation_service = RelationService()
 
 
 async def process_structured_entity(
@@ -46,7 +43,7 @@ async def process_structured_entity(
         raise ValueError(msg)
 
     # Create entity with user_confirmed confidence
-    entity_id = await _entity_service.upsert_entity(
+    entity_id = await upsert_entity(
         tenant_id=tenant_id,
         entity_type=entity_type,
         name=str(entity_data.get("name", "")),
@@ -92,7 +89,7 @@ async def process_structured_relation(
         raise ValueError(msg)
 
     # Create relation with user_confirmed confidence
-    relation_id = await _relation_service.create_relation(
+    relation_id = await create_relation(
         tenant_id=tenant_id,
         from_entity_id=str(relation_data.get("from_entity_id", "")),
         to_entity_id=str(relation_data.get("to_entity_id", "")),

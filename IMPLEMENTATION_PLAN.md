@@ -1,7 +1,7 @@
-# Implementation Plan - Knowledge Base Service
+# Implementation Plan - Memory Base Service
 
 ## Overview
-Step-by-step implementation plan for building the multi-tenant knowledge base service with SurrealDB, LangChain, and Redis.
+Step-by-step implementation plan for building the multi-tenant memory base service with SurrealDB, LangChain, and Redis.
 
 ## Current Status
 
@@ -44,8 +44,8 @@ Step-by-step implementation plan for building the multi-tenant knowledge base se
 - ✅ `openrouter_base_url: str` (default: `"https://openrouter.ai/api/v1"`)
 - ✅ `llm_model: str` (from env: `LLM_MODEL`, default: `"google/gemini-2.5-flash"`)
 - ✅ `embedding_model: str` (from env: `EMBEDDING_MODEL`, default: `"openai/text-embedding-3-small"`)
-- ✅ `redis_queue_name: str` (from env: `REDIS_QUEUE_NAME`, default: `"knowledge:ingest:queue"`)
-- ✅ `surreal_namespace: str` (from env: `SURREAL_NAMESPACE`, default: `"knowledge"`)
+- ✅ `redis_queue_name: str` (from env: `REDIS_QUEUE_NAME`, default: `"memory:ingest:queue"`)
+- ✅ `surreal_namespace: str` (from env: `SURREAL_NAMESPACE`, default: `"memory"`)
 - ✅ `surreal_database: str` (from env: `SURREAL_DATABASE`, default: `"default"`)
 
 ### Task 1.3: Update Docker Compose ✅
@@ -95,7 +95,7 @@ Step-by-step implementation plan for building the multi-tenant knowledge base se
 **Files**: 
 - `app/server/schema_generator.py` - Schema generator utility
 - `app/apps/base/schemas.py` - Base `SurrealTenantSchema` with tenant_id, timestamps, soft delete
-- `app/apps/knowledge/schemas.py` - Knowledge domain schemas
+- `app/apps/memory/schemas.py` - Memory domain schemas
 
 **Schema Definitions** (using Pydantic models with schema generator):
 - ✅ `KnowledgeSource` - Extends `SurrealTenantSchema`
@@ -123,7 +123,7 @@ Step-by-step implementation plan for building the multi-tenant knowledge base se
 ### Task 2.2: Create Pydantic Models ✅
 **Status**: Completed
 
-**File**: `app/apps/knowledge/models/requests.py`
+**File**: `app/apps/memory/models/requests.py`
 
 **Request Models**:
 - ✅ `IngestRequest`:
@@ -141,7 +141,7 @@ Step-by-step implementation plan for building the multi-tenant knowledge base se
   - `limits: dict[str, int]` (max_entities, max_chunks)
   - `source_types: list[str] | None`
 
-**File**: `app/apps/knowledge/models/responses.py`
+**File**: `app/apps/memory/models/responses.py`
 
 **Response Models**:
 - ✅ `IngestResponse`: `job_id: str`, `status: str`
@@ -151,27 +151,27 @@ Step-by-step implementation plan for building the multi-tenant knowledge base se
 - ✅ `ChunkResponse`: `id: str`, `document_id: str`, `source_type: str`, `score: float`, `text: str`, `metadata: dict[str, object]`
 - ✅ `JobStatusResponse`: `job_id: str`, `status: str`, `progress: float | None`, `error_message: str | None`, timestamps
 
-**File**: `app/apps/knowledge/models/__init__.py`
+**File**: `app/apps/memory/models/__init__.py`
 
 **Exports**:
 - ✅ All request/response models exported
-- ✅ All entity models exported (`KnowledgeSource`, `KnowledgeChunk`, `Entity`, `Relation`, `IngestJob`)
+- ✅ All entity models exported (`MemorySource`, `MemoryChunk`, `Entity`, `Relation`, `IngestJob`)
 
 ---
 
 ## Phase 3: Core Services
 
 ### Task 3.1: Text Processor Service
-**File**: `app/apps/knowledge/services/text_processor.py`
+**File**: `app/apps/memory/services/text_processor.py`
 
 **Implement**:
 - `TextProcessor` class
 - `normalize_text(text: str) -> str` - Clean/normalize MD text
 - `split_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> list[str]` - Use `RecursiveCharacterTextSplitter`
-- `create_chunks(text: str, source_id: str, metadata: dict) -> list[KnowledgeChunk]` - Create chunk objects with metadata
+- `create_chunks(text: str, source_id: str, metadata: dict) -> list[MemoryChunk]` - Create chunk objects with metadata
 
 ### Task 3.2: Embedding Service
-**File**: `app/apps/knowledge/services/embedding_service.py`
+**File**: `app/apps/memory/services/embedding_service.py`
 
 **Implement**:
 - `EmbeddingService` class
@@ -180,7 +180,7 @@ Step-by-step implementation plan for building the multi-tenant knowledge base se
 - `generate_embeddings_batch(texts: list[str]) -> list[list[float]]` - Batch processing
 
 ### Task 3.3: LangChain Chains
-**File**: `app/apps/knowledge/chains/ingestion.py`
+**File**: `app/apps/memory/chains/ingestion.py`
 
 **Implement**:
 - `IngestionChain` class
@@ -189,7 +189,7 @@ Step-by-step implementation plan for building the multi-tenant knowledge base se
 - Structured output parsing
 - Use OpenRouter-compatible LLM
 
-**File**: `app/apps/knowledge/chains/retrieval.py`
+**File**: `app/apps/memory/chains/retrieval.py`
 
 **Implement**:
 - `RetrievalChain` class
@@ -200,17 +200,17 @@ Step-by-step implementation plan for building the multi-tenant knowledge base se
 
 ## Phase 4: Database Operations & Retrievers
 
-### Task 4.1: Knowledge Source Service
-**File**: `app/apps/knowledge/services/knowledge_source_service.py`
+### Task 4.1: Memory Source Service
+**File**: `app/apps/memory/services/memory_source_service.py`
 
 **Implement**:
-- `KnowledgeSourceService` class
+- `MemorySourceService` class
 - `create_source(tenant_id, source_type, source_id, sensor_name, metadata) -> str`
-- `get_source(source_id: str) -> KnowledgeSource | None`
+- `get_source(source_id: str) -> MemorySource | None`
 - `update_source(source_id: str, metadata: dict) -> None`
 
 ### Task 4.2: Entity & Relation Services
-**File**: `app/apps/knowledge/services/entity_service.py`
+**File**: `app/apps/memory/services/entity_service.py`
 
 **Implement**:
 - `EntityService` class
@@ -218,7 +218,7 @@ Step-by-step implementation plan for building the multi-tenant knowledge base se
 - `get_entities(tenant_id, filters) -> list[Entity]`
 - `link_entity_to_source(entity_id, source_id) -> None`
 
-**File**: `app/apps/knowledge/services/relation_service.py`
+**File**: `app/apps/memory/services/relation_service.py`
 
 **Implement**:
 - `RelationService` class
@@ -227,16 +227,16 @@ Step-by-step implementation plan for building the multi-tenant knowledge base se
 - Graph query methods
 
 ### Task 4.3: Vector Service
-**File**: `app/apps/knowledge/services/vector_service.py`
+**File**: `app/apps/memory/services/vector_service.py`
 
 **Implement**:
 - `VectorService` class
-- `store_chunks(tenant_id, chunks: list[KnowledgeChunk], embeddings: list[list[float]]) -> None`
-- `vector_search(tenant_id, query_embedding, k: int, filters: dict) -> list[KnowledgeChunk]`
+- `store_chunks(tenant_id, chunks: list[MemoryChunk], embeddings: list[list[float]]) -> None`
+- `vector_search(tenant_id, query_embedding, k: int, filters: dict) -> list[MemoryChunk]`
 - Direct SurrealDB vector queries
 
 ### Task 4.4: Custom Retrievers
-**File**: `app/apps/knowledge/retrievers/vector_retriever.py`
+**File**: `app/apps/memory/retrievers/vector_retriever.py`
 
 **Implement**:
 - `SurrealDBVectorRetriever(BaseRetriever)` class
@@ -244,7 +244,7 @@ Step-by-step implementation plan for building the multi-tenant knowledge base se
 - Use `VectorService` for search
 - Support tenant_id and other filters
 
-**File**: `app/apps/knowledge/retrievers/graph_retriever.py`
+**File**: `app/apps/memory/retrievers/graph_retriever.py`
 
 **Implement**:
 - `SurrealDBGraphRetriever(BaseRetriever)` class
@@ -252,7 +252,7 @@ Step-by-step implementation plan for building the multi-tenant knowledge base se
 - Use SurrealQL graph queries
 - Convert entities/relations to Document objects
 
-**File**: `app/apps/knowledge/retrievers/hybrid_retriever.py`
+**File**: `app/apps/memory/retrievers/hybrid_retriever.py`
 
 **Implement**:
 - `HybridRetriever` class
@@ -261,7 +261,7 @@ Step-by-step implementation plan for building the multi-tenant knowledge base se
 - Deduplication
 
 ### Task 4.5: Job Service
-**File**: `app/apps/knowledge/services/job_service.py`
+**File**: `app/apps/memory/services/job_service.py`
 
 **Implement**:
 - `JobService` class
@@ -274,7 +274,7 @@ Step-by-step implementation plan for building the multi-tenant knowledge base se
 ## Phase 5: Redis Queue & Worker
 
 ### Task 5.1: Redis Queue Service
-**File**: `app/apps/knowledge/services/queue_service.py`
+**File**: `app/apps/memory/services/queue_service.py`
 
 **Implement**:
 - `QueueService` class
@@ -292,7 +292,7 @@ Step-by-step implementation plan for building the multi-tenant knowledge base se
 - Poll Redis for jobs (BLPOP or similar)
 - Process ingestion jobs:
   1. Load job data
-  2. Get knowledge source
+  2. Get memory source
   3. Run LangChain ingestion chain
   4. Extract entities & relations
   5. Chunk text
@@ -307,21 +307,21 @@ Step-by-step implementation plan for building the multi-tenant knowledge base se
 ## Phase 6: API Endpoints
 
 ### Task 6.1: Ingest API Endpoint
-**File**: `app/apps/knowledge/api/ingest.py`
+**File**: `app/apps/memory/api/ingest.py`
 
 **Implement**:
-- `POST /knowledge/ingest` endpoint
+- `POST /memory/ingest` endpoint
 - Validate `IngestRequest`
-- Create `knowledge_source` record
+- Create `memory_source` record
 - Create `ingest_job` record
 - Enqueue job to Redis
 - Return `IngestResponse`
 
 ### Task 6.2: Retrieve API Endpoint
-**File**: `app/apps/knowledge/api/retrieve.py`
+**File**: `app/apps/memory/api/retrieve.py`
 
 **Implement**:
-- `POST /knowledge/retrieve` endpoint
+- `POST /memory/retrieve` endpoint
 - Validate `RetrieveRequest`
 - Run query classification
 - Use `HybridRetriever`:
@@ -331,24 +331,24 @@ Step-by-step implementation plan for building the multi-tenant knowledge base se
 - Return `RetrieveResponse`
 
 ### Task 6.3: Job Status API Endpoint
-**File**: `app/apps/knowledge/api/jobs.py`
+**File**: `app/apps/memory/api/jobs.py`
 
 **Implement**:
-- `GET /knowledge/jobs/{job_id}` endpoint
+- `GET /memory/jobs/{job_id}` endpoint
 - Query job status from SurrealDB
 - Return `JobStatusResponse`
 
 ### Task 6.4: Wire Up Routes
-**File**: `app/apps/knowledge/api/__init__.py`
+**File**: `app/apps/memory/api/__init__.py`
 
 **Create router**:
 - Include ingest, retrieve, and jobs routers
-- Add prefix `/knowledge`
+- Add prefix `/memory`
 
 **File**: `app/server/server.py`
 
 **Update**:
-- Import knowledge router
+- Import memory router
 - Include router in `server_router`
 
 ---
@@ -416,12 +416,12 @@ app/
 ├── apps/
 │   ├── base/
 │   │   └── schemas.py          # Base SurrealTenantSchema
-│   └── knowledge/
+│   └── memory/
 │       ├── models/
 │       │   ├── __init__.py     # Exports
 │       │   ├── requests.py     # API request models
 │       │   └── responses.py    # API response models
-│       └── schemas.py          # Domain schemas (KnowledgeSource, etc.)
+│       └── schemas.py          # Domain schemas (MemorySource, etc.)
 ├── server/
 │   ├── schema_generator.py     # Auto-generates SurrealDB schemas
 │   ├── config.py              # Settings with all configs

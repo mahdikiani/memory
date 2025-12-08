@@ -4,15 +4,12 @@ import logging
 
 from server.db import db_manager
 
-from ...utils.entity_service import EntityService
-from ...utils.relation_service import RelationService
+from ...utils.entity_service import find_entity
+from ...utils.relation_service import create_relation
 from ...utils.tenant_config_service import get_tenant_relation_types_async
-from ..models import ExtractedRelation
+from ..schemas import ExtractedRelation
 
 logger = logging.getLogger(__name__)
-
-_entity_service = EntityService()
-_relation_service = RelationService()
 
 
 async def filter_relations_by_tenant_config(
@@ -69,8 +66,7 @@ async def resolve_entity_ids(
 
     for relation in relations:
         try:
-            # Find from_entity
-            from_entity = await _entity_service._find_entity(
+            from_entity = await find_entity(
                 tenant_id, relation.from_entity_type, relation.from_entity_name
             )
             if not from_entity:
@@ -81,8 +77,7 @@ async def resolve_entity_ids(
                 )
                 continue
 
-            # Find to_entity
-            to_entity = await _entity_service._find_entity(
+            to_entity = await find_entity(
                 tenant_id, relation.to_entity_type, relation.to_entity_name
             )
             if not to_entity:
@@ -142,8 +137,7 @@ async def save_relations(
 
     for rel_data in resolved:
         try:
-            # Create relation
-            relation_id = await _relation_service.create_relation(
+            relation_id = await create_relation(
                 tenant_id=tenant_id,
                 from_entity_id=rel_data["from_entity_id"],
                 to_entity_id=rel_data["to_entity_id"],

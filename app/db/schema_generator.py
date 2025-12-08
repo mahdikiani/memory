@@ -1,6 +1,7 @@
 """Generate SurrealDB schema definitions from Pydantic models."""
 
 import inspect
+import logging
 from datetime import datetime
 from types import UnionType
 from typing import Union, get_args, get_origin
@@ -8,13 +9,58 @@ from typing import Union, get_args, get_origin
 import surrealdb
 from pydantic import BaseModel
 
-from utils.texttools import camel_to_kebab
+from .metadata import _get_table_name
+from .utils import get_all_subclasses
 
 AsyncSurrealConnection = (
     surrealdb.AsyncEmbeddedSurrealConnection
     | surrealdb.AsyncWsSurrealConnection
     | surrealdb.AsyncHttpSurrealConnection
 )
+
+logger = logging.getLogger(__name__)
+
+# Cache for model-to-table mapping
+_MODEL_TABLE_MAP: dict[str, str] | None = None
+
+
+def _get_model_table_map() -> dict[str, str]:
+    """Get mapping of model class names to table names."""
+    global _MODEL_TABLE_MAP
+    if _MODEL_TABLE_MAP is not None:
+        return _MODEL_TABLE_MAP
+
+    from .models import BaseSurrealEntity
+
+    model_classes = get_all_subclasses(BaseSurrealEntity)
+    _MODEL_TABLE_MAP = {
+        model.__name__: _get_table_name(model) for model in model_classes
+    }
+    return _MODEL_TABLE_MAP
+
+
+def _infer_table_name_from_field(field_name: str) -> str | None:
+    """Infer table name from field name pattern."""
+    model_map = _get_model_table_map()
+    field_lower = field_name.lower()
+
+    # Try to match field pattern to model/table names
+    # e.g., "source_id" -> "KnowledgeSource" -> "knowledge-source"
+    # e.g., "entity_id" -> "Entity" -> "entity"
+
+    # Check for "source" pattern - look for models with "Source" in name
+    if "source" in field_lower:
+        for model_name, table_name in model_map.items():
+            if "Source" in model_name and "Knowledge" in model_name:
+                return table_name
+
+    # Check for "entity" pattern - exact match for Entity model
+    if "entity" in field_lower:
+        for model_name, table_name in model_map.items():
+            if model_name == "Entity":
+                return table_name
+
+    return None
 
 
 def _quote_identifier(identifier: str) -> str:
@@ -67,10 +113,10 @@ def _handle_list_type(
         return "array<float>"
     if inner_type is str:
         if field_name.endswith(("_ids", "_id")):
-            if "source" in field_name.lower():
-                return "array<record<`knowledge-source`>>"
-            if "entity" in field_name.lower():
-                return "array<record<entity>>"
+            inferred_table = _infer_table_name_from_field(field_name)
+            if inferred_table:
+                quoted_table = _quote_identifier(inferred_table)
+                return f"array<record<{quoted_table}>>"
         return "array<string>"
 
     inner_surreal = python_type_to_surreal_type(inner_type, field_name, table_name)
@@ -83,14 +129,18 @@ def _handle_string_type(field_name: str, table_name: str | None) -> str:
         return "string"
 
     # Special cases: source_id in KnowledgeSource and IngestJob are external IDs
-    if field_name == "source_id" and table_name in ("knowledge-source", "ingest-job"):
-        return "string"
+    model_map = _get_model_table_map()
+    if field_name == "source_id" and table_name:
+        # Check if current table is KnowledgeSource or IngestJob
+        for model_name, table in model_map.items():
+            if table == table_name and model_name in ("KnowledgeSource", "IngestJob"):
+                return "string"
 
     # Infer table name from field name
-    if "source" in field_name.lower():
-        return "record<`knowledge-source`>"
-    if "entity" in field_name.lower():
-        return "record<entity>"
+    inferred_table = _infer_table_name_from_field(field_name)
+    if inferred_table:
+        quoted_table = _quote_identifier(inferred_table)
+        return f"record<{quoted_table}>"
     return "string"
 
 
@@ -265,12 +315,11 @@ def get_models_and_indexes() -> tuple[
     dict[str, type[BaseModel]], dict[str, dict[str, list[str]]]
 ]:
     """Get models and indexes configuration dynamically from Field metadata."""
-    from fastapi_mongo_base.utils import basic
+    from .models import BaseSurrealEntity
 
-    from apps.base.models import BaseSurrealTenantEntity
-
-    model_classes = basic.get_all_subclasses(BaseSurrealTenantEntity)
-    models = {camel_to_kebab(model.__name__): model for model in model_classes}
+    model_classes = get_all_subclasses(BaseSurrealEntity)
+    # Use table names as keys instead of model class names
+    models = {_get_table_name(model): model for model in model_classes}
 
     # Extract indexes dynamically from each model
     indexes = {}
@@ -282,10 +331,6 @@ def get_models_and_indexes() -> tuple[
 
 async def init_schema(surreal_db: AsyncSurrealConnection) -> None:
     """Initialize SurrealDB schema with all required tables and indexes."""
-    import logging
-
-    logger = logging.getLogger(__name__)
-
     models, indexes = get_models_and_indexes()
 
     for table_name, model in models.items():
@@ -303,6 +348,7 @@ async def init_schema(surreal_db: AsyncSurrealConnection) -> None:
 
 async def _define_custom_functions(surreal_db: AsyncSurrealConnection) -> None:
     """Define custom SurrealDB functions."""
+    return
     import logging
     from pathlib import Path
 
@@ -312,7 +358,7 @@ async def _define_custom_functions(surreal_db: AsyncSurrealConnection) -> None:
 
     # Define cosine similarity function
     async with aiofiles.open(
-        Path(__file__).parent / "surreal_files" / "cossine_function.sql"
+        Path(__file__).parent / "surreal_files" / "cossine_function.surql"
     ) as f:
         cosine_similarity_function = await f.read()
 
