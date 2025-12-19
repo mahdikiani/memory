@@ -8,7 +8,8 @@ from langchain_core.retrievers import BaseRetriever
 from db import execute_graph_query
 from server.db import db_manager
 
-from ...models import Entity, Relation
+from ...models import Entity
+from ...relation import Relation
 
 logger = logging.getLogger(__name__)
 

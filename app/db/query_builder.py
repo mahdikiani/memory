@@ -30,16 +30,17 @@ class QueryBuilder:
         self._select_fields: list[str] = ["*"]
         self._order_by: list[str] = []
         self._limit_value: int | None = None
+        self._skip_value: int | None = None
 
     @staticmethod
     def _validate_table(table: str) -> None:
         """Validate table name is safe (dynamic validation)."""
-        from .models import BaseSurrealEntity
+        from .models import AbstractBaseSurrealEntity
 
         # Dynamically get all valid table names from models
         model_classes = [
             cls
-            for cls in get_all_subclasses(BaseSurrealEntity)
+            for cls in get_all_subclasses(AbstractBaseSurrealEntity)
             if not (
                 "Settings" in cls.__dict__
                 and getattr(cls.Settings, "__abstract__", False)
@@ -253,6 +254,22 @@ class QueryBuilder:
         self._limit_value = count
         return self
 
+    def skip(self, count: int) -> Self:
+        """
+        Add SKIP clause.
+
+        Args:
+            count: Number of records to skip
+
+        Returns:
+            Self for method chaining
+
+        """
+        if not isinstance(count, int) or count < 0:
+            raise ValueError("Skip must be a non-negative integer")
+        self._skip_value = count
+        return self
+
     def build(self) -> tuple[str, dict[str, object]]:
         """
         Build the final query string and parameters.
@@ -274,11 +291,15 @@ class QueryBuilder:
         if self._order_by:
             order_by_clause = " ORDER BY " + ", ".join(self._order_by)
 
+        # Build skip clause
+        skip_clause = ""
+        if self._skip_value is not None:
+            skip_clause = f" START {self._skip_value}"
+
         # Build LIMIT clause
         limit_clause = ""
         if self._limit_value is not None:
-            limit_param = self._add_param(self._limit_value)
-            limit_clause = " LIMIT " + limit_param
+            limit_clause = f" LIMIT {self._limit_value}"
 
         # Build query safely without f-string interpolation
         query_parts = [
@@ -291,6 +312,8 @@ class QueryBuilder:
             query_parts.append(where_clause)
         if order_by_clause:
             query_parts.append(order_by_clause)
+        if skip_clause:
+            query_parts.append(skip_clause)
         if limit_clause:
             query_parts.append(limit_clause)
 

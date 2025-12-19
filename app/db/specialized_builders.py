@@ -10,7 +10,7 @@ from .metadata import (
     _get_table_name,
     _get_vector_field,
 )
-from .models import BaseSurrealEntity
+from .models import AbstractBaseSurrealEntity
 from .query_builder import QueryBuilder
 from .utils import get_all_subclasses
 
@@ -29,7 +29,7 @@ class VectorQueryBuilder(QueryBuilder):
         if table is None:
             # Dynamically find model with vector field from metadata
 
-            model_classes = get_all_subclasses(BaseSurrealEntity)
+            model_classes = get_all_subclasses(AbstractBaseSurrealEntity)
             for model_class in model_classes:
                 vector_field = _get_vector_field(model_class)
                 if vector_field:
@@ -127,7 +127,7 @@ class FullTextQueryBuilder(QueryBuilder):
         """
         if table is None:
             # Dynamically find model with fulltext field from metadata
-            model_classes = get_all_subclasses(BaseSurrealEntity)
+            model_classes = get_all_subclasses(AbstractBaseSurrealEntity)
             for model_class in model_classes:
                 fulltext_field = _get_fulltext_field(model_class)
                 if fulltext_field:
@@ -168,7 +168,7 @@ class FullTextQueryBuilder(QueryBuilder):
         # Add fulltext search condition
         if self._query_text_param:
             # Get fulltext field name from metadata
-            model_classes = get_all_subclasses(BaseSurrealEntity)
+            model_classes = get_all_subclasses(AbstractBaseSurrealEntity)
             for model_class in model_classes:
                 fulltext_field = _get_fulltext_field(model_class)
                 if fulltext_field:
@@ -537,7 +537,7 @@ class CombinedQueryBuilder(QueryBuilder):
         """
         if table is None:
             # Try to find table with vector or fulltext field
-            model_classes = get_all_subclasses(BaseSurrealEntity)
+            model_classes = get_all_subclasses(AbstractBaseSurrealEntity)
             for model_class in model_classes:
                 vector_field = _get_vector_field(model_class)
                 fulltext_field = _get_fulltext_field(model_class)
@@ -580,7 +580,7 @@ class CombinedQueryBuilder(QueryBuilder):
         self._use_fulltext = True
 
         # Find fulltext field
-        model_classes = get_all_subclasses(BaseSurrealEntity)
+        model_classes = get_all_subclasses(AbstractBaseSurrealEntity)
         for model_class in model_classes:
             fulltext_field = _get_fulltext_field(model_class)
             if fulltext_field:

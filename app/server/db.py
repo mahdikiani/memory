@@ -2,6 +2,9 @@
 
 import logging
 
+from redis import Redis as RedisSync
+from redis.asyncio.client import Redis
+
 from db.manager import DatabaseManager
 
 from . import config
@@ -9,7 +12,9 @@ from . import config
 logger = logging.getLogger(__name__)
 
 
-def init_redis(settings: config.Settings | None = None) -> tuple:
+def init_redis(
+    settings: config.Settings | None = None,
+) -> tuple[RedisSync | None, Redis | None]:
     """
     Initialize the Redis connection.
 
@@ -22,22 +27,15 @@ def init_redis(settings: config.Settings | None = None) -> tuple:
     Raises:
         Exception: If there is an error initializing the Redis connection.
     """
-    try:
-        from redis import Redis as RedisSync
-        from redis.asyncio.client import Redis
+    if settings is None:
+        settings = config.Settings()
 
-        if settings is None:
-            settings = config.Settings()
+    redis_uri = getattr(settings, "redis_uri", None)
+    if redis_uri:
+        redis_sync: RedisSync = RedisSync.from_url(redis_uri)
+        redis: Redis = Redis.from_url(redis_uri)
 
-        redis_uri = getattr(settings, "redis_uri", None)
-        if redis_uri:
-            redis_sync: RedisSync = RedisSync.from_url(redis_uri)
-            redis: Redis = Redis.from_url(redis_uri)
-
-            return redis_sync, redis
-    except (ImportError, AttributeError, Exception):
-        logging.exception("Error initializing Redis")
-
+        return redis_sync, redis
     return None, None
 
 
@@ -50,4 +48,4 @@ db_manager = DatabaseManager(
     config.Settings().surrealdb_database,
 )
 
-redis, redis_sync = init_redis()
+redis_sync, redis = init_redis()

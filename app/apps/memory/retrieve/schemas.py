@@ -1,8 +1,73 @@
 """Schemas for retrieve endpoints."""
 
+from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
+
+from ..models import Artifact, ArtifactChunk, Entity
+from ..relation import Relation
+
+
+class RetrieveResolution(StrEnum):
+    """Resolution of the retrieval."""
+
+    TYPE_ONLY = "type_only"
+    MAJOR_TYPE_AND_NAME = "major_type_and_name"
+    SELECTED_ENTITIES = "selected_entities"
+    SELECTED_ENTITIES_AND_MUTUAL_RELATIONS = "selected_entities_and_mutual_relations"
+    RELATED_ARTIFACTS_DATA = "related_artifacts_data"
+    RELATED_ARTIFACTS_TEXT = "related_artifacts_text"
+
+
+class RetrieveRequest(BaseModel):
+    """Request model for retrieval."""
+
+    tenant_id: str | None = Field(None, description="Tenant/organization ID")
+    company_id: str | None = Field(None, description="Company ID")
+    user_id: str | None = Field(None, description="User ID")
+    group_id: str | None = Field(None, description="Group ID")
+
+    resolution: RetrieveResolution | None = Field(
+        None,
+        description="Resolution of the retrieval",
+    )
+    entity_ids: list[str] | None = Field(
+        None,
+        description="""Entity IDs to retrieve""",
+    )
+    text: str | None = Field(None, description="Text for retrieval context")
+
+    @field_validator("tenant_id")
+    @classmethod
+    def validate_tenant_id(cls, v: str | None, info: ValidationInfo) -> str | None:
+        """Validate tenant ID."""
+        if v is None and info.data.get("company_id") is None:
+            raise ValueError("Tenant ID is required")
+        return v
+
+
+class ArtifactWithChunks(BaseModel):
+    """Artifact with its associated chunks."""
+
+    artifact: Artifact = Field(..., description="Artifact data")
+    chunks: list[ArtifactChunk] = Field(
+        default_factory=list, description="Chunks belonging to this artifact"
+    )
+
+
+class RetrieveResponse(BaseModel):
+    """Response model for retrieval."""
+
+    tenant_id: str = Field(description="Tenant/organization ID")
+    company_id: str = Field(description="Company ID")
+    entities: list[Entity] = Field(..., description="Entities retrieved")
+    relations: list[Relation] = Field(..., description="Relations retrieved")
+    artifacts: list[ArtifactWithChunks] = Field(
+        default_factory=list, description="Artifacts with their chunks"
+    )
+
+    context: str | None = Field(None, description="Context text retrieved")
 
 
 class OldRetrieveRequest(BaseModel):
@@ -23,31 +88,6 @@ class OldRetrieveRequest(BaseModel):
     )
 
     model_config = {"json_schema_extra": {"examples": []}}
-
-
-class RetrieveRequest(BaseModel):
-    """Request model for structured retrieval."""
-
-    tenant_id: str = Field(..., description="Tenant/organization ID")
-    entity_ids: list[str] | None = Field(
-        None, description="Explicit entity IDs to fetch"
-    )
-    entity_type: str | None = Field(None, description="Filter by entity type")
-    name: str | None = Field(None, description="Filter by entity name")
-    relation_type: str | None = Field(None, description="Filter relations by type")
-    related_entity_id: str | None = Field(
-        None, description="Return relations touching this entity_id"
-    )
-    limit_entities: int = Field(20, ge=1, le=200)
-    limit_relations: int = Field(50, ge=1, le=200)
-
-
-class RagRetrieveRequest(OldRetrieveRequest):
-    """Request model for RAG retrieval."""
-
-    query_type: Literal["structured", "semantic", "hybrid"] | None = Field(
-        None, description="Force query type; defaults to classifier"
-    )
 
 
 class EntityResult(BaseModel):

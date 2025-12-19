@@ -9,7 +9,7 @@ from typing import Union, get_args, get_origin
 import surrealdb
 from pydantic import BaseModel
 
-from .metadata import _get_table_name
+from .models import AbstractBaseSurrealEntity
 from .utils import get_all_subclasses
 
 AsyncSurrealConnection = (
@@ -30,11 +30,16 @@ def _get_model_table_map() -> dict[str, str]:
     if _MODEL_TABLE_MAP is not None:
         return _MODEL_TABLE_MAP
 
-    from .models import BaseSurrealEntity
-
-    model_classes = get_all_subclasses(BaseSurrealEntity)
+    model_classes = [
+        model
+        for model in get_all_subclasses(AbstractBaseSurrealEntity)
+        if not (
+            "Settings" in model.__dict__
+            and getattr(model.Settings, "__abstract__", False)
+        )
+    ]
     _MODEL_TABLE_MAP = {
-        model.__name__: _get_table_name(model) for model in model_classes
+        model.__name__: model._get_table_name() for model in model_classes
     }
     return _MODEL_TABLE_MAP
 
@@ -196,23 +201,28 @@ def get_all_fields(model: type[BaseModel]) -> dict[str, object]:
     """Get all fields from a model including inherited fields."""
     fields = {}
 
-    # Walk through MRO to get all fields
+    # Walk through MRO (method resolution order) to get all fields
     for base in inspect.getmro(model):
-        if issubclass(base, BaseModel) and hasattr(base, "model_fields"):
-            for field_name, field_info in base.model_fields.items():
-                if field_name not in fields:
-                    fields[field_name] = field_info
+        if not issubclass(base, BaseModel) or not hasattr(base, "model_fields"):
+            continue
+
+        for field_name, field_info in base.model_fields.items():
+            if field_name in fields:
+                continue
+
+            fields[field_name] = field_info
 
     return fields
 
 
-def generate_table_schema(
-    model: type[BaseModel], table_name: str, indexes: dict[str, list[str]] | None = None
-) -> str:
-    """Generate SurrealDB table schema definition from a Pydantic model."""
-    quoted_table = _quote_identifier(table_name)
+def generate_table_schemafull(
+    model: type[AbstractBaseSurrealEntity],
+    table_name: str,
+    quoted_table: str,
+) -> list[str]:
+    """Generate SurrealDB table schemafull fields definition from a Pydantic model."""
+    raise NotImplementedError("Schema full is not implemented yet")
     lines = [f"DEFINE TABLE {quoted_table} SCHEMAFULL;"]
-
     fields = get_all_fields(model)
 
     for field_name, field_info in fields.items():
@@ -237,14 +247,45 @@ def generate_table_schema(
             field_def += " DEFAULT time::now()"
 
         lines.append(field_def + ";")
+    return lines
+
+
+def generate_table_schema(
+    model: type[AbstractBaseSurrealEntity],
+    table_name: str,
+    indexes: dict[str, list[str]] | None = None,
+) -> str:
+    """Generate SurrealDB table schema definition from a Pydantic model."""
+    quoted_table = _quote_identifier(table_name)
+    if model.Settings.schema_full:
+        lines = generate_table_schemafull(model, table_name, quoted_table)
+    else:
+        lines = [f"DEFINE TABLE {quoted_table} SCHEMALESS;"]
+
+    # TODO: handle assert needed fields
 
     # Add indexes
     if indexes:
+        # TODO: check unique index
+        # TODO: check fulltext index
+        # TODO: check vector index
+        # TODO: check spatial index
+        # TODO: check time series index
+        # TODO: check hash index
+        # TODO: check bitmap index
+        # TODO: check bloom filter index
+        # TODO: check prefix index
+        # TODO: check suffix index
+        # TODO: multi field index
         for index_name, index_fields in indexes.items():
             quoted_index = _quote_identifier(index_name)
             quoted_fields = ", ".join(_quote_identifier(f) for f in index_fields)
             lines.append(
-                f"DEFINE INDEX {quoted_index} ON {quoted_table} FIELDS {quoted_fields};"
+                " ".join([
+                    f"DEFINE INDEX {quoted_index}",
+                    f"ON {quoted_table}",
+                    f"COLUMNS {quoted_fields};",
+                ])
             )
 
     return "\n        ".join(lines)
@@ -296,17 +337,22 @@ def extract_indexes_from_model(model: type[BaseModel]) -> dict[str, list[str]]:
     for field_name in field_order:
         if field_name not in fields:
             continue
+
         field_info = fields[field_name]
         # Get json_schema_extra if it exists
         json_schema_extra = getattr(field_info, "json_schema_extra", None)
-        if json_schema_extra and isinstance(json_schema_extra, dict):
-            index_name = json_schema_extra.get("surreal_index")
-            if index_name:
-                if index_name not in index_fields:
-                    index_fields[index_name] = []
-                # Only add if not already present (to preserve order)
-                if field_name not in index_fields[index_name]:
-                    index_fields[index_name].append(field_name)
+        if not json_schema_extra or not isinstance(json_schema_extra, dict):
+            continue
+
+        index_name = json_schema_extra.get("surreal_index")
+        if not index_name:
+            continue
+
+        if index_name not in index_fields:
+            index_fields[index_name] = []
+        # Only add if not already present (to preserve order)
+        if field_name not in index_fields[index_name]:
+            index_fields[index_name].append(field_name)
 
     return index_fields
 
@@ -315,18 +361,27 @@ def get_models_and_indexes() -> tuple[
     dict[str, type[BaseModel]], dict[str, dict[str, list[str]]]
 ]:
     """Get models and indexes configuration dynamically from Field metadata."""
-    from .models import BaseSurrealEntity
+    from .models import AbstractBaseSurrealEntity
 
-    model_classes = get_all_subclasses(BaseSurrealEntity)
+    model_classes: list[type[AbstractBaseSurrealEntity]] = get_all_subclasses(
+        AbstractBaseSurrealEntity
+    )
     # Use table names as keys instead of model class names
-    models = {_get_table_name(model): model for model in model_classes}
+    concrete_models = {
+        model._get_table_name(): model
+        for model in model_classes
+        if not (
+            "Settings" in model.__dict__
+            and getattr(model.Settings, "__abstract__", False)
+        )
+    }
 
     # Extract indexes dynamically from each model
     indexes = {}
-    for table_name, model in models.items():
+    for table_name, model in concrete_models.items():
         indexes[table_name] = extract_indexes_from_model(model)
 
-    return models, indexes
+    return concrete_models, indexes
 
 
 async def init_schema(surreal_db: AsyncSurrealConnection) -> None:
@@ -335,36 +390,12 @@ async def init_schema(surreal_db: AsyncSurrealConnection) -> None:
 
     for table_name, model in models.items():
         table_indexes = indexes.get(table_name, {})
-        schema = generate_table_schema(model, table_name, table_indexes)
+        schema_query = generate_table_schema(model, table_name, table_indexes)
 
         logger.debug("Defining table: %s", table_name)
-        await surreal_db.query(schema)
-
-    # Define custom functions
-    await _define_custom_functions(surreal_db)
+        await surreal_db.query(schema_query)
 
     logger.info("SurrealDB schema initialized successfully")
-
-
-async def _define_custom_functions(surreal_db: AsyncSurrealConnection) -> None:
-    """Define custom SurrealDB functions."""
-    return
-    import logging
-    from pathlib import Path
-
-    import aiofiles
-
-    logger = logging.getLogger(__name__)
-
-    # Define cosine similarity function
-    async with aiofiles.open(
-        Path(__file__).parent / "surreal_files" / "cossine_function.surql"
-    ) as f:
-        cosine_similarity_function = await f.read()
-
-    logger.debug("Defining cosine_similarity function")
-    await surreal_db.query(cosine_similarity_function)
-    logger.info("Custom functions defined successfully")
 
 
 def generate_schemas_file() -> str:

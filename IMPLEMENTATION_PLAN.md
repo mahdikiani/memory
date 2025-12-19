@@ -9,14 +9,14 @@ Step-by-step implementation plan for building the multi-tenant memory base servi
 |-------|--------|----------|
 | Phase 1: Foundation & Infrastructure | ✅ Complete | 4/4 tasks |
 | Phase 2: Data Models & Schema | ✅ Complete | 2/2 tasks |
-| Phase 3: Core Services | ⏳ Pending | 0/3 tasks |
-| Phase 4: Database Operations & Retrievers | ⏸️ Pending | 0/5 tasks |
+| Phase 3: Core Services | ✅ Complete | 3/3 tasks |
+| Phase 4: Database Operations & Retrievers | 🔄 In Progress | 3/5 tasks |
 | Phase 5: Redis Queue & Worker | ⏸️ Pending | 0/2 tasks |
-| Phase 6: API Endpoints | ⏸️ Pending | 0/4 tasks |
+| Phase 6: API Endpoints | 🔄 In Progress | 3/4 tasks |
 | Phase 7: Testing & Validation | ⏸️ Pending | 0/2 tasks |
 | Phase 8: Documentation & Polish | ⏸️ Pending | 0/2 tasks |
 
-**Overall Progress**: 6/24 tasks completed (25%)
+**Overall Progress**: 15/24 tasks completed (62%)
 
 ---
 
@@ -161,7 +161,7 @@ Step-by-step implementation plan for building the multi-tenant memory base servi
 
 ## Phase 3: Core Services
 
-### Task 3.1: Text Processor Service
+### Task 3.1: Text Processor Service ✅
 **File**: `app/apps/memory/services/text_processor.py`
 
 **Implement**:
@@ -170,61 +170,38 @@ Step-by-step implementation plan for building the multi-tenant memory base servi
 - `split_text(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> list[str]` - Use `RecursiveCharacterTextSplitter`
 - `create_chunks(text: str, source_id: str, metadata: dict) -> list[MemoryChunk]` - Create chunk objects with metadata
 
-### Task 3.2: Embedding Service
-**File**: `app/apps/memory/services/embedding_service.py`
+### Task 3.2: Embedding Service ✅
+**File**: `app/apps/memory/utils/embedding_service.py`
 
-**Implement**:
-- `EmbeddingService` class
-- Initialize `OpenAIEmbeddings` with OpenRouter config
-- `generate_embedding(text: str) -> list[float]`
-- `generate_embeddings_batch(texts: list[str]) -> list[list[float]]` - Batch processing
+**Implemented (functional + async)**:
+- `generate_embedding` / `generate_embeddings_batch` using shared async OpenAI client (`utils/openai_client.py`)
+- OpenRouter-configured client with caching
 
-### Task 3.3: LangChain Chains
-**File**: `app/apps/memory/chains/ingestion.py`
+### Task 3.3: LLM Chains ✅
+**Files**:
+- `app/apps/memory/ingest/chain.py` (functional helpers `extract_entities`, `extract_relations`, `process_text`)
+- `app/apps/memory/retrieve/chain.py` (functional helpers `classify_query`, `extract_filters`)
 
-**Implement**:
-- `IngestionChain` class
-- LLM chain for entity extraction (person, company, project, contract, etc.)
-- LLM chain for relation inference
-- Structured output parsing
-- Use OpenRouter-compatible LLM
-
-**File**: `app/apps/memory/chains/retrieval.py`
-
-**Implement**:
-- `RetrievalChain` class
-- Query classification (structured/semantic/hybrid)
-- Filter extraction from queries
+Notes: both use shared async OpenAI client and cached PromptService instances.
 
 ---
 
 ## Phase 4: Database Operations & Retrievers
 
-### Task 4.1: Memory Source Service
-**File**: `app/apps/memory/services/memory_source_service.py`
+### Task 4.1: Knowledge Source Service ✅
+Implemented in `apps/memory/ingest/knowledge_source_service.py` (create/get/update).
 
-**Implement**:
-- `MemorySourceService` class
-- `create_source(tenant_id, source_type, source_id, sensor_name, metadata) -> str`
-- `get_source(source_id: str) -> MemorySource | None`
-- `update_source(source_id: str, metadata: dict) -> None`
+### Task 4.2: Entity & Relation Ops ✅
+Functional helpers in `apps/memory/utils/entity_service.py` and `apps/memory/utils/relation_service.py` (create/upsert/get/link).
 
-### Task 4.2: Entity & Relation Services
-**File**: `app/apps/memory/services/entity_service.py`
+### Task 4.3: Vector/Graph/Hybrid Retrievers ✅
+Files: `retrieve/retrievers/vector_retriever.py`, `graph_retriever.py`, `hybrid_retriever.py`, `fulltext_retriever.py`, `exact_match_retriever.py`.
 
-**Implement**:
-- `EntityService` class
-- `upsert_entity(tenant_id, entity_type, name, attributes, source_ids) -> str`
-- `get_entities(tenant_id, filters) -> list[Entity]`
-- `link_entity_to_source(entity_id, source_id) -> None`
+### Task 4.4: Vector Service ⏳
+Dedicated vector service wrapper not separated yet; retrieval uses direct query helpers. (Pending if still desired.)
 
-**File**: `app/apps/memory/services/relation_service.py`
-
-**Implement**:
-- `RelationService` class
-- `create_relation(tenant_id, from_entity_id, to_entity_id, relation_type, attributes) -> str`
-- `get_relations(tenant_id, entity_id) -> list[Relation]`
-- Graph query methods
+### Task 4.5: Job Service ✅
+`ingest/job_service.py` handles create/update/get for jobs.
 
 ### Task 4.3: Vector Service
 **File**: `app/apps/memory/services/vector_service.py`
@@ -306,50 +283,15 @@ Step-by-step implementation plan for building the multi-tenant memory base servi
 
 ## Phase 6: API Endpoints
 
-### Task 6.1: Ingest API Endpoint
-**File**: `app/apps/memory/api/ingest.py`
-
-**Implement**:
-- `POST /memory/ingest` endpoint
-- Validate `IngestRequest`
-- Create `memory_source` record
-- Create `ingest_job` record
-- Enqueue job to Redis
-- Return `IngestResponse`
-
-### Task 6.2: Retrieve API Endpoint
-**File**: `app/apps/memory/api/retrieve.py`
-
-**Implement**:
-- `POST /memory/retrieve` endpoint
-- Validate `RetrieveRequest`
-- Run query classification
-- Use `HybridRetriever`:
-  - Vector search (via `SurrealDBVectorRetriever`)
-  - Graph search (via `SurrealDBGraphRetriever`)
-- Merge and rank results
-- Return `RetrieveResponse`
-
-### Task 6.3: Job Status API Endpoint
-**File**: `app/apps/memory/api/jobs.py`
-
-**Implement**:
-- `GET /memory/jobs/{job_id}` endpoint
-- Query job status from SurrealDB
-- Return `JobStatusResponse`
-
-### Task 6.4: Wire Up Routes
-**File**: `app/apps/memory/api/__init__.py`
-
-**Create router**:
-- Include ingest, retrieve, and jobs routers
-- Add prefix `/memory`
-
-**File**: `app/server/server.py`
-
-**Update**:
-- Import memory router
-- Include router in `server_router`
+### Task 6.1–6.4: API Endpoints 🔄
+Current implemented routes (FastAPI):
+- `POST /api/memory/v1/ingest` (unstructured, async LLM pipeline)
+- `POST /api/memory/v1/ingest/entity` (structured)
+- `POST /api/memory/v1/ingest/relation` (structured)
+- `POST /api/memory/v1/retrieve` (RAG hybrid)
+- `POST /api/memory/v1/retrieve/entity` (structured graph/entity fetch)
+- `GET /api/memory/v1/metadata` (tenant config)
+Pending: job status endpoint and queue integration once Redis/worker land.
 
 ---
 

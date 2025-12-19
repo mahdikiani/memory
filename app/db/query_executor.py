@@ -60,76 +60,7 @@ async def execute_query(
     query_type = _detect_query_type(query)
 
     try:
-        # Try different ways SurrealDB Python SDK might accept parameters
-        # Method 1: Try as keyword argument
-        if variables:
-            try:
-                result = await db.query(query, variables=variables)
-            except TypeError:
-                # Method 2: Try as second positional argument
-                try:
-                    result = await db.query(query, variables)
-                except TypeError:
-                    # Method 3: Try using bind method if available
-                    def raise_binding_error() -> None:
-                        """Raise error for missing parameter binding."""
-                        raise TypeError("No parameter binding method found")
-
-                    try:
-                        if hasattr(db, "bind"):
-                            result = await db.query(query).bind(variables)
-                        else:
-                            raise_binding_error()
-                    except (TypeError, AttributeError):
-                        # Fallback: log warning and execute without parameters
-                        # This should not happen if query_builder is used correctly
-                        logger.exception(
-                            "SurrealDB SDK does not support parameter binding. "
-                            "Query may be vulnerable if variables are not properly "
-                            "validated. Query: %s",
-                            query[:100],
-                        )
-                        result = await db.query(query)
-        else:
-            result = await db.query(query)
-
-        execution_time = time.perf_counter() - start_time
-        rows_count = 0
-
-        if result and len(result) > 0:
-            rows = result[0].get("result", [])
-            rows_count = len(rows)
-
-            # Log performance metrics
-            logger.debug(
-                "Query executed successfully: type=%s, time=%.3fs, rows=%d, "
-                "query_length=%d",
-                query_type,
-                execution_time,
-                rows_count,
-                len(query),
-            )
-
-            # Warn for slow queries (>1 second)
-            if execution_time > 1.0:
-                logger.warning(
-                    "Slow query detected: type=%s, time=%.3fs, rows=%d, query=%s",
-                    query_type,
-                    execution_time,
-                    rows_count,
-                    query[:200],
-                )
-
-            return rows
-
-        else:
-            execution_time = time.perf_counter() - start_time
-            logger.debug(
-                "Query executed (no results): type=%s, time=%.3fs",
-                query_type,
-                execution_time,
-            )
-            return []
+        result = await db.query(query, variables)
     except Exception:
         execution_time = time.perf_counter() - start_time
         logger.exception(
@@ -139,6 +70,30 @@ async def execute_query(
             query[:200],
         )
         raise
+
+    execution_time = time.perf_counter() - start_time
+    rows_count = len(result)
+
+    # Log performance metrics
+    logger.debug(
+        "Query executed successfully: type=%s, time=%.3fs, rows=%d, query_length=%d",
+        query_type,
+        execution_time,
+        rows_count,
+        len(query),
+    )
+
+    # Warn for slow queries (>1 second)
+    if execution_time > 1.0:
+        logger.warning(
+            "Slow query detected: type=%s, time=%.3fs, rows=%d, query=%s",
+            query_type,
+            execution_time,
+            rows_count,
+            query[:200],
+        )
+
+    return result
 
 
 def _detect_query_type(query: str) -> str:

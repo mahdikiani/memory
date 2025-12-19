@@ -4,13 +4,12 @@ import asyncio
 import logging
 import sys
 
-from server.schema_generator import _quote_identifier, get_models_and_indexes
-
-from apps.memory.models import Entity, KnowledgeChunk, KnowledgeSource, Relation
+from apps.memory.models import Artifact, ArtifactChunk, Entity, Event
+from db.schema_generator import _quote_identifier, get_models_and_indexes
 from server.config import Settings
 from server.db import DatabaseManager
 
-__all__ = ["Entity", "KnowledgeChunk", "KnowledgeSource", "Relation"]
+__all__ = ["Artifact", "ArtifactChunk", "Entity", "Event"]
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,9 +46,15 @@ async def test_schema_generation() -> None:
         logger.info("   Namespace: %s", settings.surrealdb_namespace)
         logger.info("   Database: %s", settings.surrealdb_database)
 
-        db_manager = DatabaseManager(settings)
-        await db_manager.connect()
-        await db_manager.init_schema()
+        db_manager = DatabaseManager(
+            settings.surrealdb_uri,
+            settings.surrealdb_username,
+            settings.surrealdb_password,
+            settings.surrealdb_namespace,
+            settings.surrealdb_database,
+        )
+        await db_manager.aconnect()
+        await db_manager.ainit_schema()
         db = db_manager.get_db()
         logger.info("   ✓ Connected successfully!")
 
@@ -85,7 +90,7 @@ async def test_schema_generation() -> None:
         logger.exception("\n✗ Test failed with error")
         sys.exit(1)
     finally:
-        await db_manager.disconnect()
+        await db_manager.adisconnect()
 
 
 if __name__ == "__main__":

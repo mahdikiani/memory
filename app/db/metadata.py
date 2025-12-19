@@ -42,9 +42,9 @@ def _get_fulltext_field(model: type[BaseModel]) -> str | None:
 
 def _model_classes() -> list[type[BaseModel]]:
     """Get all model classes from BaseSurrealEntity."""
-    from .models import BaseSurrealEntity
+    from .models import AbstractBaseSurrealEntity
 
-    return get_all_subclasses(BaseSurrealEntity)
+    return get_all_subclasses(AbstractBaseSurrealEntity)
 
 
 def _get_graph_node_model() -> type[BaseModel] | None:

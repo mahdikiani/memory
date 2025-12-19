@@ -32,12 +32,25 @@ async def generate_embedding(
 async def generate_embeddings_batch(
     texts: Iterable[str],
     settings: Settings | None = None,
-    batch_size: int = 100,
-) -> list[list[float]]:
-    """Generate embeddings for multiple texts in batches (async)."""
+    batch_size: int = 20,
+) -> tuple[list[list[float] | None], list[str]]:
+    """
+    Generate embeddings for multiple texts in batches (async).
+
+    Args:
+        texts: Iterable of texts to generate embeddings for
+        settings: Settings object
+        batch_size: Size of each batch
+
+    Returns:
+        Tuple containing:
+        - list of embeddings
+        - list of error messages
+    """
+
     texts_list = list(texts)
     if not texts_list:
-        return []
+        return [], []
 
     # Filter out empty texts
     valid_texts = [text for text in texts_list if text.strip()]
@@ -48,10 +61,11 @@ async def generate_embeddings_batch(
         )
 
     if not valid_texts:
-        return []
+        return [], []
 
     client, model_name = get_client_and_model(settings)
     embeddings: list[list[float]] = []
+    errors: list[str] = []
 
     for i in range(0, len(valid_texts), batch_size):
         batch = valid_texts[i : i + batch_size]
@@ -65,9 +79,9 @@ async def generate_embeddings_batch(
                 min(i + batch_size, len(valid_texts)),
                 len(batch),
             )
-        except Exception:
-            logger.exception("Failed to generate embeddings for batch")
-            raise
+        except Exception as e:
+            # logger.exception("Failed to generate embeddings for batch")/
+            errors.append(f"Failed to generate embeddings for batch {i}: {type(e)} {e}")
 
     logger.info("Generated %d embeddings total", len(embeddings))
-    return embeddings
+    return embeddings, errors

@@ -1,6 +1,10 @@
 """Response schemas for FastAPI endpoints."""
 
+from typing import ClassVar, Literal
+
 from pydantic import BaseModel, Field
+
+from .ingest.schemas import IngestRequest
 
 
 class EntityResponse(BaseModel):
@@ -60,3 +64,38 @@ class JobStatusResponse(BaseModel):
     created_at: str = Field(..., description="Job creation timestamp")
     updated_at: str = Field(..., description="Job last update timestamp")
     completed_at: str | None = Field(None, description="Job completion timestamp")
+
+
+class CreateCompanySchema(IngestRequest):
+    """Payload for initializing a company with intro ingestion."""
+
+    tenant_id: ClassVar[None] = None
+
+    company_id: str = Field(
+        description="National ID if available; otherwise leave empty"
+    )
+    name: str = Field(..., description="Company name")
+    description: str | None = Field(None, description="Description of the company")
+
+    sensor_name: Literal["initialization"] = Field(
+        "initialization", description="Sensor name"
+    )
+
+    sensor_types: list[str] | None = Field(
+        None,
+        description="List of allowed sensor types for this company (None = defaults)",
+    )
+    entity_types: list[str] | None = Field(
+        None,
+        description=("List of allowed entity types for this company (None = defaults)"),
+    )
+    relation_types: list[str] | None = Field(
+        None,
+        description=(
+            "List of allowed relation types for this company (None = defaults)"
+        ),
+    )
+
+    meta_data: dict[str, object] | None = Field(
+        None, description="Additional metadata for the company"
+    )
