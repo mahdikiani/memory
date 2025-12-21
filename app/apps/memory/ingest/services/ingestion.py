@@ -1,5 +1,6 @@
 """Main ingestion helpers (functional) for ingestion processes."""
 
+import asyncio
 import logging
 
 from db.models import RecordId
@@ -7,7 +8,12 @@ from db.models import RecordId
 from ...models import Artifact, Entity, Event
 from ...relation import Relation
 from ..models import IngestJob, IngestStatus
-from ..schemas import EntityIngestion, RelationIngestion
+from ..schemas import (
+    ContentIngestion,
+    EntityIngestion,
+    IngestRequest,
+    RelationIngestion,
+)
 from .text_processor import TextProcessor
 
 logger = logging.getLogger(__name__)
@@ -211,6 +217,202 @@ async def upsert_relation(tenant_id: str, relation: RelationIngestion) -> Relati
         relation_data["target_id"] = relation_data.pop("in")
 
     return Relation(**relation_data)
+
+
+async def resolve_entity_id(
+    entity_id: str,
+    entity_mapping: dict[str, str],
+    artifact_mapping: dict[str, str],
+    tenant_id: str,
+    warnings: list[str],
+) -> str | None:
+    """
+    Resolve entity ID from internal ID to database ID.
+
+    Args:
+        entity_id: Internal ID or database ID
+        entity_mapping: Mapping from internal entity ID to database ID
+        artifact_mapping: Mapping from internal artifact ID to database ID
+        tenant_id: Tenant ID for database lookup
+        warnings: List to append warnings to
+
+    Returns:
+        Resolved database ID or None if not found
+    """
+    # First check entity mapping
+    if entity_id in entity_mapping:
+        return entity_mapping[entity_id]
+
+    # Then check artifact mapping
+    if entity_id in artifact_mapping:
+        return artifact_mapping[entity_id]
+
+    # Try to find in database (might be an existing entity ID)
+    entity = await Entity.find_one(id=entity_id, tenant_id=tenant_id)
+    if entity:
+        return str(entity.id)
+
+    # Not found anywhere
+    warnings.append(
+        f"Entity ID '{entity_id}' not found in payload or database. "
+        f"Relation referencing this ID will be skipped."
+    )
+    return None
+
+
+async def create_artifacts_with_mapping(
+    tenant_id: str,
+    contents: list[ContentIngestion],
+    uri: str | None,
+    sensor_name: str,
+) -> tuple[list[Artifact], dict[str, str]]:
+    """
+    Create artifacts from contents and build mapping from internal ID to database ID.
+
+    Args:
+        tenant_id: Tenant ID
+        contents: List of content ingestion objects
+        uri: URI of the artifact
+        sensor_name: Name of the sensor
+
+    Returns:
+        Tuple of (artifacts list, mapping dict)
+    """
+    artifacts: list[Artifact] = []
+    artifact_mapping: dict[str, str] = {}
+
+    for content in contents:
+        artifact = await Artifact(
+            tenant_id=tenant_id,
+            uri=uri,
+            sensor_name=sensor_name,
+            data=content.data,
+            raw_text=content.text,
+            meta_data=content.meta_data,
+        ).save()
+        artifacts.append(artifact)
+        if content.id:
+            artifact_mapping[content.id] = str(artifact.id)
+
+    return artifacts, artifact_mapping
+
+
+async def upsert_entities_with_mapping(
+    tenant_id: str,
+    entities: list[EntityIngestion],
+    artifacts: list[Artifact],
+) -> tuple[list[Entity], dict[str, str]]:
+    """
+    Upsert entities and build mapping from internal ID to database ID.
+
+    Args:
+        tenant_id: Tenant ID
+        entities: List of entity ingestion objects
+        artifacts: List of artifacts
+
+    Returns:
+        Tuple of (entities list, mapping dict)
+    """
+    saved_entities = await asyncio.gather(*[
+        upsert_entity(tenant_id, entity, artifacts) for entity in entities
+    ])
+
+    entity_mapping: dict[str, str] = {}
+    for entity_ingestion, saved_entity in zip(entities, saved_entities, strict=True):
+        entity_mapping[entity_ingestion.id] = str(saved_entity.id)
+
+    return saved_entities, entity_mapping
+
+
+async def resolve_and_collect_relations(
+    payload: IngestRequest,
+    entity_mapping: dict[str, str],
+    artifact_mapping: dict[str, str],
+    warnings: list[str],
+) -> list[RelationIngestion]:
+    """
+    Resolve all relation IDs and collect them into a list.
+
+    Args:
+        payload: Ingest request payload
+        entity_mapping: Mapping from internal entity ID to database ID
+        artifact_mapping: Mapping from internal artifact ID to database ID
+        warnings: List to append warnings to
+
+    Returns:
+        List of resolved relation ingestion objects
+    """
+    all_relations: list[RelationIngestion] = []
+
+    # Relations from payload.relations
+    for relation in payload.relations:
+        from_id = await resolve_entity_id(
+            relation.from_entity_id,
+            entity_mapping,
+            artifact_mapping,
+            payload.tenant_id,
+            warnings,
+        )
+        to_id = await resolve_entity_id(
+            relation.to_entity_id,
+            entity_mapping,
+            artifact_mapping,
+            payload.tenant_id,
+            warnings,
+        )
+        if from_id and to_id:
+            relation.from_entity_id = from_id
+            relation.to_entity_id = to_id
+            all_relations.append(relation)
+
+    # Relations from content.relations
+    for content in payload.contents:
+        if not content.id:
+            continue
+        for relation in content.relations:
+            from_id = await resolve_entity_id(
+                content.id,
+                entity_mapping,
+                artifact_mapping,
+                payload.tenant_id,
+                warnings,
+            )
+            to_id = await resolve_entity_id(
+                relation.to_entity_id,
+                entity_mapping,
+                artifact_mapping,
+                payload.tenant_id,
+                warnings,
+            )
+            if from_id and to_id:
+                relation_ingestion = RelationIngestion(
+                    from_entity_id=from_id,
+                    to_entity_id=to_id,
+                    relation_type=relation.relation_type,
+                    data=relation.data,
+                    meta_data=relation.meta_data,
+                )
+                all_relations.append(relation_ingestion)
+
+    return all_relations
+
+
+async def upsert_all_relations(
+    tenant_id: str, relations: list[RelationIngestion]
+) -> list[Relation]:
+    """
+    Upsert all relations.
+
+    Args:
+        tenant_id: Tenant ID
+        relations: List of relation ingestion objects
+
+    Returns:
+        List of saved relation objects
+    """
+    return await asyncio.gather(*[
+        upsert_relation(tenant_id, relation) for relation in relations
+    ])
 
 
 async def ingest(job_dict: dict[str, object]) -> None:

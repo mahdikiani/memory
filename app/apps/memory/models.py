@@ -2,6 +2,7 @@
 
 from typing import ClassVar, Self
 
+from aiocache import cached
 from pydantic import ConfigDict, Field
 
 from db.models import BaseSurrealEntity, RecordId
@@ -52,6 +53,7 @@ class Company(BaseSurrealEntity):
         default_factory=dict, description="Company additional data"
     )
 
+    @cached(ttl=60 * 30)
     @classmethod
     async def get_by_id(
         cls,
@@ -94,6 +96,7 @@ class Artifact(TenantSurrealMixin, AuthorizationMixin, BaseSurrealEntity):
     sensor_name: str | None = Field(
         None, description="Name of the sensor/service that generated the artifact"
     )
+    data: dict[str, object] = Field(default_factory=dict, description="Entity data")
     raw_text: str | None = Field(..., description="Raw text content of the artifact")
 
     async def get_text(self) -> str:

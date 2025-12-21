@@ -1,12 +1,16 @@
 """Routes for ingest endpoints."""
 
-import asyncio
-
 from fastapi import APIRouter
 
-from ..models import Artifact
+from ..exceptions import BaseHTTPException
+from ..models import Company
 from .schemas import IngestionResult, IngestRequest
-from .services.ingestion import upsert_entity, upsert_relation
+from .services.ingestion import (
+    create_artifacts_with_mapping,
+    resolve_and_collect_relations,
+    upsert_all_relations,
+    upsert_entities_with_mapping,
+)
 from .services.job import create_ingestion_jobs
 
 router = APIRouter(tags=["ingest"])
@@ -16,43 +20,45 @@ router = APIRouter(tags=["ingest"])
 async def ingest(payload: IngestRequest) -> IngestionResult:
     """Ingest a user-confirmed entity without LLM processing."""
 
-    # Create artifact if we have contents or uri/sensor_name
-    artifacts: list[Artifact] = []
-    for content in payload.contents:
-        # Create artifact for structured ingestion
-        artifact = await Artifact(
-            tenant_id=payload.tenant_id,
-            uri=payload.uri,
-            sensor_name=payload.sensor_name,
-            raw_text=content,
-            meta_data=payload.meta_data,
-        ).save()
-        artifacts.append(artifact)
-
-    entities = await asyncio.gather(*[
-        upsert_entity(
-            payload.tenant_id,
-            entity,
-            artifacts,
-        )
-        for entity in payload.entities
-    ])
-    relations = await asyncio.gather(
-        *(
-            [
-                upsert_relation(payload.tenant_id, relation, artifacts)
-                for relation in payload.relations
-            ]
-            + [
-                upsert_relation(payload.tenant_id, relation, artifacts)
-                for entity in payload.entities
-                for relation in entity.relations
-            ]
-        )
+    company: Company | None = await Company.get_by_id(
+        id=payload.tenant_id, company_id=payload.company_id
     )
+    if not company:
+        raise BaseHTTPException(
+            status_code=404,
+            error="company_not_found",
+            detail="Company not found",
+        )
+    payload.tenant_id = company.id
+
+    warnings: list[str] = []
+
+    artifacts, artifact_mapping = await create_artifacts_with_mapping(
+        payload.tenant_id,
+        payload.contents,
+        payload.uri,
+        payload.sensor_name,
+    )
+
+    entities, entity_mapping = await upsert_entities_with_mapping(
+        payload.tenant_id,
+        payload.entities,
+        artifacts,
+    )
+
+    all_relations = await resolve_and_collect_relations(
+        payload,
+        entity_mapping,
+        artifact_mapping,
+        warnings,
+    )
+
+    relations = await upsert_all_relations(payload.tenant_id, all_relations)
+
     jobs = await create_ingestion_jobs(artifacts=artifacts)
     return IngestionResult(
         job_ids=[job.id for job, _ in jobs],
         entities=entities,
         relations=relations,
+        warnings=warnings,
     )

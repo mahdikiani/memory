@@ -218,6 +218,204 @@ async def _find_mutual_relations(
     return mutual_relations
 
 
+async def _build_artifact_entity_mapping(
+    company: Company, entity_ids: list[str], relation_type: str
+) -> dict[str, set[str]]:
+    """
+    Build mapping of artifact IDs to connected entity IDs for a relation type.
+
+    Args:
+        company: Company object
+        entity_ids: List of entity IDs
+        relation_type: Type of relation to query
+
+    Returns:
+        Dictionary mapping artifact_id to set of connected entity_ids
+    """
+    from db.query_executor import execute_query
+
+    artifact_entity_map: dict[str, set[str]] = {}
+    Relation._validate_table_name(relation_type)
+
+    query = (
+        f"SELECT * FROM {relation_type} "  # noqa: S608
+        "WHERE tenant_id = $tenant_id "
+        "AND is_deleted = false "
+        "AND ((out IN $entity_ids AND `in` LIKE 'artifact:%') "
+        "OR (`in` IN $entity_ids AND out LIKE 'artifact:%'))"
+    )
+
+    variables = {
+        "tenant_id": company.id,
+        "entity_ids": entity_ids,
+    }
+
+    try:
+        rows = await execute_query(query, variables)
+        for row in rows:
+            source_id = str(row.get("out", ""))
+            target_id = str(row.get("in", ""))
+
+            # Check if source is entity and target is artifact
+            if source_id in entity_ids and target_id.startswith("artifact:"):
+                artifact_id = target_id
+                if artifact_id not in artifact_entity_map:
+                    artifact_entity_map[artifact_id] = set()
+                artifact_entity_map[artifact_id].add(source_id)
+
+            # Check if target is entity and source is artifact
+            if target_id in entity_ids and source_id.startswith("artifact:"):
+                artifact_id = source_id
+                if artifact_id not in artifact_entity_map:
+                    artifact_entity_map[artifact_id] = set()
+                artifact_entity_map[artifact_id].add(target_id)
+
+    except Exception:
+        logger.exception("Failed to query relations for type: %s", relation_type)
+
+    return artifact_entity_map
+
+
+async def _fetch_artifacts_by_ids(
+    company: Company, artifact_ids: list[str]
+) -> list[Artifact]:
+    """
+    Fetch artifacts by their IDs.
+
+    Args:
+        company: Company object
+        artifact_ids: List of artifact IDs
+
+    Returns:
+        List of fetched artifacts
+    """
+    artifacts: list[Artifact] = []
+    for artifact_id in artifact_ids:
+        try:
+            artifact = await Artifact.find_one(id=artifact_id, tenant_id=company.id)
+            if artifact:
+                artifacts.append(artifact)
+        except Exception:
+            logger.warning("Failed to fetch artifact: %s", artifact_id)
+            continue
+
+    return artifacts
+
+
+async def _find_artifacts_connected_to_artifacts(
+    company: Company, artifact_ids: list[str]
+) -> list[str]:
+    """
+    Find artifact IDs that are connected to the given artifact IDs.
+
+    Args:
+        company: Company object
+        artifact_ids: List of artifact IDs to find connections for
+
+    Returns:
+        List of artifact IDs connected to the given artifacts
+    """
+    from db.query_executor import execute_query
+
+    if not artifact_ids:
+        return []
+
+    connected_artifact_ids: set[str] = set()
+    relation_types = company.relation_types or []
+
+    for relation_type in relation_types:
+        Relation._validate_table_name(relation_type)
+        # Query relations where source or target is in artifact_ids
+        # and the other side is also an artifact
+        query = (
+            f"SELECT * FROM {relation_type} "  # noqa: S608
+            "WHERE tenant_id = $tenant_id "
+            "AND is_deleted = false "
+            "AND ((out IN $artifact_ids AND `in` LIKE 'artifact:%') "
+            "OR (`in` IN $artifact_ids AND out LIKE 'artifact:%'))"
+        )
+
+        variables = {
+            "tenant_id": company.id,
+            "artifact_ids": artifact_ids,
+        }
+
+        try:
+            rows = await execute_query(query, variables)
+            for row in rows:
+                source_id = str(row.get("out", ""))
+                target_id = str(row.get("in", ""))
+
+                # Check if source is in artifact_ids and target is artifact
+                if source_id in artifact_ids and target_id.startswith("artifact:"):
+                    connected_artifact_ids.add(target_id)
+
+                # Check if target is in artifact_ids and source is artifact
+                if target_id in artifact_ids and source_id.startswith("artifact:"):
+                    connected_artifact_ids.add(source_id)
+
+        except Exception:
+            logger.exception("Failed to query relations for type: %s", relation_type)
+            continue
+
+    return list(connected_artifact_ids)
+
+
+async def _find_artifacts_connected_to_entities(
+    company: Company, entity_ids: list[str]
+) -> list[Artifact]:
+    """
+    Find artifacts connected to entities and their related artifacts.
+
+    Finds artifacts that are connected to at least two entities from the entity
+    list, and also finds artifacts connected to those artifacts.
+
+    Args:
+        company: Company object
+        entity_ids: List of entity IDs
+
+    Returns:
+        List of artifacts connected to at least two entities and their
+        connected artifacts
+    """
+    if not entity_ids:
+        return []
+
+    # Track which artifacts are connected to which entities
+    artifact_entity_map: dict[str, set[str]] = {}  # artifact_id -> set of entity_ids
+    relation_types = company.relation_types or []
+
+    for relation_type in relation_types:
+        mapping = await _build_artifact_entity_mapping(
+            company, entity_ids, relation_type
+        )
+        # Merge mappings
+        for artifact_id, connected_entities in mapping.items():
+            if artifact_id not in artifact_entity_map:
+                artifact_entity_map[artifact_id] = set()
+            artifact_entity_map[artifact_id].update(connected_entities)
+
+    # Filter artifacts that are connected to at least two entities
+    connected_artifact_ids = [
+        artifact_id
+        for artifact_id, connected_entities in artifact_entity_map.items()
+        if len(connected_entities) >= 2
+    ]
+
+    if not connected_artifact_ids:
+        return []
+
+    # Find artifacts connected to these artifacts
+    related_artifact_ids = await _find_artifacts_connected_to_artifacts(
+        company, connected_artifact_ids
+    )
+
+    # Combine all artifact IDs (remove duplicates)
+    all_artifact_ids = list(set(connected_artifact_ids + related_artifact_ids))
+
+    return await _fetch_artifacts_by_ids(company, all_artifact_ids)
+
+
 def _get_relation_jsons(relations: list[Relation]) -> list[str]:
     """Get JSON representations of relations."""
     relation_jsons = []
@@ -265,6 +463,11 @@ async def retrieve_selected_entities_and_mutual_relations(
     # Find mutual relations
     mutual_relations = await _find_mutual_relations(company, entity_ids)
 
+    # Find artifacts connected to at least two entities
+    connected_artifacts = await _find_artifacts_connected_to_entities(
+        company, entity_ids
+    )
+
     # Build context with entities and relations
     intro.extend(entity_jsons)
 
@@ -274,12 +477,18 @@ async def retrieve_selected_entities_and_mutual_relations(
 
     intro.append(".")
 
+    # Convert artifacts to ArtifactWithChunks format
+    artifacts_with_chunks = [
+        ArtifactWithChunks(artifact=artifact, chunks=[])
+        for artifact in connected_artifacts
+    ]
+
     return RetrieveResponse(
         tenant_id=company.id,
         company_id=company.company_id,
         entities=selected_entities,
         relations=mutual_relations,
-        artifacts=[],
+        artifacts=artifacts_with_chunks,
         context="\n".join(intro) if intro else None,
     )
 
