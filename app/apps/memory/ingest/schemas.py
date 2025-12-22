@@ -59,7 +59,7 @@ class IngestRequest(AuthorizationMixin):
     uri: str | None = Field(None, description="URI of the artifact")
 
     entities: list[EntityIngestion] = Field(
-        default_factory=dict,
+        default_factory=list,
         description="""Structured data to ingest""",
     )
     relations: list[RelationIngestion] = Field(

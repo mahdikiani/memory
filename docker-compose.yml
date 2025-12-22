@@ -25,10 +25,12 @@ services:
 
   worker:
     build: app
-    # restart: unless-stopped
+    restart: unless-stopped
     command: python -m worker
     env_file:
       - .env
+    depends_on:
+      - app
     networks:
       - surreal-net
       - default
