@@ -29,19 +29,20 @@ async def ingest(payload: IngestRequest) -> IngestionResult:
             error="company_not_found",
             detail="Company not found",
         )
+
     payload.tenant_id = company.id
 
     warnings: list[str] = []
 
     artifacts, artifact_mapping = await create_artifacts_with_mapping(
-        payload.tenant_id,
+        company.id,
         payload.contents,
         payload.uri,
         payload.sensor_name,
     )
 
     entities, entity_mapping = await upsert_entities_with_mapping(
-        payload.tenant_id,
+        company.id,
         payload.entities,
         artifacts,
     )
@@ -53,7 +54,7 @@ async def ingest(payload: IngestRequest) -> IngestionResult:
         warnings,
     )
 
-    relations = await upsert_all_relations(payload.tenant_id, all_relations)
+    relations = await upsert_all_relations(company.id, all_relations)
 
     jobs = await create_ingestion_jobs(artifacts=artifacts)
     return IngestionResult(

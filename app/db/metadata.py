@@ -4,16 +4,10 @@ import inspect
 
 from pydantic import BaseModel
 
-from .utils import camel_to_kebab, get_all_subclasses
+from .utils import get_all_subclasses
 
 # Cache for dynamically discovered field names
 _ALLOWED_FIELDS: set[str] | None = None
-
-
-def _get_table_name(model: type[BaseModel]) -> str:
-    """Get the table name for a model."""
-
-    return camel_to_kebab(model.__name__)
 
 
 def _get_vector_field(model: type[BaseModel]) -> str | None:

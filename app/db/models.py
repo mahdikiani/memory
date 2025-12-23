@@ -82,6 +82,23 @@ class RecordId(str):
             raise ValueError("Invalid SurrealDB record id (empty table)")
         return cls(s)
 
+    def to_record_id(self) -> RecordID:
+        """
+        Convert RecordId to SurrealDB RecordID.
+
+        Returns:
+            SurrealDB RecordID instance
+
+        Raises:
+            ValueError: If RecordId is invalid
+        """
+        if ":" not in self:
+            raise ValueError("Invalid SurrealDB record id (expected 'table:id')")
+        table, record_id = self.split(":", 1)
+        if not table:
+            raise ValueError("Invalid SurrealDB record id (empty table)")
+        return RecordID(table, record_id)
+
 
 class AbstractBaseSurrealEntity(BaseModel):
     """Base model for all SurrealDB entities."""
@@ -89,6 +106,7 @@ class AbstractBaseSurrealEntity(BaseModel):
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
         validate_assignment=True,
+        from_attributes=True,
     )
 
     class Settings:
@@ -112,6 +130,7 @@ class AbstractBaseSurrealEntity(BaseModel):
         if cls.Settings.table_name is not None:
             return cls.Settings.table_name
         # Otherwise, use the class name
+        return cls.__name__
         return camel_to_kebab(cls.__name__)
 
     async def save(self) -> Self:

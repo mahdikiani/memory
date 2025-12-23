@@ -5,7 +5,6 @@ import re
 from typing import Self
 
 from .field_validation import sanitize_field_name, validate_field_name
-from .metadata import _get_table_name
 from .utils import get_all_subclasses
 
 logger = logging.getLogger(__name__)
@@ -38,7 +37,7 @@ class QueryBuilder:
         from .models import AbstractBaseSurrealEntity
 
         # Dynamically get all valid table names from models
-        model_classes = [
+        model_classes: list[type[AbstractBaseSurrealEntity]] = [
             cls
             for cls in get_all_subclasses(AbstractBaseSurrealEntity)
             if not (
@@ -46,7 +45,7 @@ class QueryBuilder:
                 and getattr(cls.Settings, "__abstract__", False)
             )
         ]
-        allowed_tables = {_get_table_name(model) for model in model_classes}
+        allowed_tables = {model._get_table_name() for model in model_classes}
 
         # Also validate table name format (alphanumeric, hyphen, underscore)
         if not re.match(r"^[a-zA-Z0-9_-]+$", table):

@@ -1,6 +1,5 @@
 """API routes for memory service."""
 
-
 from fastapi import APIRouter
 
 from .exceptions import BaseHTTPException
@@ -8,7 +7,7 @@ from .ingest.routes import ingest
 from .ingest.routes import router as ingest_router
 from .models import Company
 from .retrieve.routes import router as retrieve_router
-from .schemas import CreateCompanySchema
+from .schemas import CompanyCreateSchema
 from .services import create_company
 
 router = APIRouter()
@@ -23,12 +22,16 @@ async def get_companies() -> list[Company]:
 
 
 @router.post("/company", tags=["company"])
-async def initialize_company(payload: CreateCompanySchema) -> Company:
+async def initialize_company(
+    payload: CompanyCreateSchema, override: bool = False
+) -> Company:
     """Create a company entity and ingest its introductory content."""
 
-    company = await create_company(payload)
+    from .ingest.schemas import IngestRequest
 
-    await ingest(payload)
+    company = await create_company(payload, override)
+
+    await ingest(IngestRequest.model_validate(payload.model_dump()))
 
     return company
 

@@ -26,7 +26,7 @@ class Settings(metaclass=Singleton):
     _cors_origins_str: str | None = os.getenv("CORS_ORIGINS")
 
     page_max_limit: int = 100
-    mongo_uri: str = os.getenv("MONGO_URI", default="mongodb://mongo:27017/")
+    redis_uri: str = os.getenv("REDIS_URI", default="redis://redis:6379/")
 
     project_name: str = os.getenv("PROJECT_NAME", "memory")
     base_dir: Path = Path(__file__).resolve().parent.parent

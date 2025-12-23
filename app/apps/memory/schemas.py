@@ -66,7 +66,7 @@ class JobStatusResponse(BaseModel):
     completed_at: str | None = Field(None, description="Job completion timestamp")
 
 
-class CreateCompanySchema(IngestRequest):
+class CompanyCreateSchema(IngestRequest):
     """Payload for initializing a company with intro ingestion."""
 
     tenant_id: ClassVar[None] = None
@@ -94,6 +94,9 @@ class CreateCompanySchema(IngestRequest):
         description=(
             "List of allowed relation types for this company (None = defaults)"
         ),
+    )
+    data: dict[str, object] = Field(
+        default_factory=dict, description="Additional data for the company"
     )
 
     meta_data: dict[str, object] | None = Field(

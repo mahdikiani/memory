@@ -58,7 +58,9 @@ async def update_entity(
 
 
 async def create_entity(
-    tenant_id: str, entity: EntityIngestion, artifacts: list[Artifact] | None = None
+    tenant_id: RecordId,
+    entity: EntityIngestion,
+    artifacts: list[Artifact] | None = None,
 ) -> Entity:
     """Create a new entity."""
 
@@ -81,7 +83,7 @@ async def create_entity(
 
 
 async def upsert_entity(
-    tenant_id: str,
+    tenant_id: RecordId,
     entity: EntityIngestion,
     artifacts: list[Artifact] | None = None,
 ) -> Entity:
@@ -112,16 +114,19 @@ async def update_relation(relation: Relation, data: RelationIngestion) -> Relati
     return await relation.save()
 
 
-async def upsert_relation(tenant_id: str, relation: RelationIngestion) -> Relation:
+async def upsert_relation(tenant_id: RecordId, relation: RelationIngestion) -> Relation:
     """Upsert a relation using RELATE command."""
+    from surrealdb import RecordID
+
     from db.models import DatabaseManager
     from db.query_executor import execute_query
 
     db_manager = DatabaseManager()
     db = db_manager.get_db()
 
-    source_id = RecordId(relation.from_entity_id)
-    target_id = RecordId(relation.to_entity_id)
+    source_id: RecordID = RecordId(relation.from_entity_id).to_record_id()
+    target_id: RecordID = RecordId(relation.to_entity_id).to_record_id()
+    tenant_id: RecordID = RecordId(tenant_id).to_record_id()
     relation_type = relation.relation_type
 
     # Check if relation already exists
@@ -129,8 +134,8 @@ async def upsert_relation(tenant_id: str, relation: RelationIngestion) -> Relati
     # We need to query using these field names directly
     find_existing_query = (
         "SELECT * FROM relation "
-        "WHERE out = $source_id "
-        "AND `in` = $target_id "
+        "WHERE out = $target_id "
+        "AND in = $source_id "
         "AND relation_type = $relation_type "
         "AND tenant_id = $tenant_id "
         "AND is_deleted = false "
@@ -138,8 +143,8 @@ async def upsert_relation(tenant_id: str, relation: RelationIngestion) -> Relati
     )
 
     find_existing_variables = {
-        "source_id": str(source_id),
-        "target_id": str(target_id),
+        "source_id": source_id,
+        "target_id": target_id,
         "relation_type": relation_type,
         "tenant_id": tenant_id,
     }
@@ -163,16 +168,18 @@ async def upsert_relation(tenant_id: str, relation: RelationIngestion) -> Relati
     # Use relation:{relation_type} to store in "relation" table
     # with relation_type as edge type
     relate_query = (
-        f"RELATE {source_id} -> {relation_type} -> {target_id} "
-        f"SET tenant_id = $tenant_id, "
-        f"relation_type = $relation_type, "
-        f"data = $data, "
-        f"updated_at = time::now(), "
-        f"is_deleted = false, "
-        f"created_at = time::now()"
+        "RELATE $source_id -> relation -> $target_id "
+        "SET tenant_id = $tenant_id, "
+        "relation_type = $relation_type, "
+        "data = $data, "
+        "updated_at = time::now(), "
+        "is_deleted = false, "
+        "created_at = time::now()"
     )
 
     variables = {
+        "source_id": source_id,
+        "target_id": target_id,
         "tenant_id": tenant_id,
         "relation_type": relation_type,
         "data": relation.data or {},
@@ -185,8 +192,8 @@ async def upsert_relation(tenant_id: str, relation: RelationIngestion) -> Relati
     # Relations are stored with 'out' and 'in' fields in SurrealDB
     find_query = (
         "SELECT * FROM relation "
-        "WHERE out = $source_id "
-        "AND `in` = $target_id "
+        "WHERE out = $target_id "
+        "AND in = $source_id "
         "AND relation_type = $relation_type "
         "AND tenant_id = $tenant_id "
         "AND is_deleted = false "
@@ -194,8 +201,8 @@ async def upsert_relation(tenant_id: str, relation: RelationIngestion) -> Relati
     )
 
     find_variables = {
-        "source_id": str(source_id),
-        "target_id": str(target_id),
+        "source_id": source_id,
+        "target_id": target_id,
         "relation_type": relation_type,
         "tenant_id": tenant_id,
     }
@@ -203,6 +210,11 @@ async def upsert_relation(tenant_id: str, relation: RelationIngestion) -> Relati
     results = await execute_query(find_query, find_variables)
 
     if not results:
+        logging.info("Find relation query: \n%s\n%s", find_query, results)
+        dict_vars = []
+        for key, value in find_variables.items():
+            dict_vars.append(f"{key} = ({type(value)}) {value!r}")
+        logging.info("Find relation variables: \n%s", "\n".join(dict_vars))
         raise ValueError(
             f"Failed to find relation after RELATE: "
             f"{source_id} -> {relation_type} -> {target_id}"
@@ -223,7 +235,7 @@ async def resolve_entity_id(
     entity_id: str,
     entity_mapping: dict[str, str],
     artifact_mapping: dict[str, str],
-    tenant_id: str,
+    tenant_id: RecordId,
     warnings: list[str],
 ) -> str | None:
     """
@@ -261,7 +273,7 @@ async def resolve_entity_id(
 
 
 async def create_artifacts_with_mapping(
-    tenant_id: str,
+    tenant_id: RecordId,
     contents: list[ContentIngestion],
     uri: str | None,
     sensor_name: str,
@@ -298,7 +310,7 @@ async def create_artifacts_with_mapping(
 
 
 async def upsert_entities_with_mapping(
-    tenant_id: str,
+    tenant_id: RecordId,
     entities: list[EntityIngestion],
     artifacts: list[Artifact],
 ) -> tuple[list[Entity], dict[str, str]]:
@@ -398,7 +410,7 @@ async def resolve_and_collect_relations(
 
 
 async def upsert_all_relations(
-    tenant_id: str, relations: list[RelationIngestion]
+    tenant_id: RecordId, relations: list[RelationIngestion]
 ) -> list[Relation]:
     """
     Upsert all relations.

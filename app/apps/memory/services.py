@@ -4,12 +4,12 @@ import logging
 
 from .exceptions import BaseHTTPException
 from .models import Company
-from .schemas import CreateCompanySchema
+from .schemas import CompanyCreateSchema
 
 logger = logging.getLogger(__name__)
 
 
-async def create_company(data: CreateCompanySchema, override: bool = False) -> Company:
+async def create_company(data: CompanyCreateSchema, override: bool = False) -> Company:
     """Create or update tenant configuration."""
 
     # Get existing config or create new

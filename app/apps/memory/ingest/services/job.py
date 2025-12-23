@@ -20,7 +20,7 @@ async def create_artifact_processing_job(artifact: Artifact) -> tuple[IngestJob,
         artifact_id=artifact.id,
     ).save()
 
-    index = await enqueue(job.model_dump(), queue_name="ingestion")
+    index = await enqueue(job.model_dump(mode="json"), queue_name="ingestion")
     return job, index
 
 

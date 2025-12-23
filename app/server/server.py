@@ -16,6 +16,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     logging.info("Lifespan started - initializing database connection")
     db_manager = db.db_manager
     await db_manager.aconnect()
+    # await db_manager.get_db().query(
+    #     f"REMOVE DATABASE {config.Settings().surrealdb_database};"
+    # )
     await db_manager.ainit_schema()
     # db_manager.connect()
     logging.info("Database connection initialized and schema created")

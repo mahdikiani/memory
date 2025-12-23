@@ -123,7 +123,7 @@ class Relation(TenantSurrealMixin, AuthorizationMixin, BaseSurrealEntity):
         # Validate relation_type to prevent SQL injection
         self._validate_table_name(self.relation_type)
         relate_query = (
-            f"RELATE {self.source_id} -> {self.relation_type} -> {self.target_id} "
+            f"RELATE {self.source_id} -> relation -> {self.target_id} "
             f"SET tenant_id = $tenant_id, "
             f"relation_type = $relation_type, "
             f"updated_at = $updated_at, "

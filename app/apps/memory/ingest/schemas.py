@@ -3,6 +3,7 @@
 from pydantic import BaseModel, Field, field_validator
 
 from ..models import AuthorizationMixin, Entity
+from ..relation import Relation
 
 
 class BaseRelationIngestion(BaseModel):
@@ -85,7 +86,7 @@ class IngestionResult(BaseModel):
 
     job_ids: list[str] = Field(..., description="Ingestion job ID")
     entities: list[Entity] = Field(default_factory=list, description="Entities created")
-    relations: list[RelationIngestion] = Field(
+    relations: list[Relation] = Field(
         default_factory=list, description="Relations created"
     )
     warnings: list[str] = Field(

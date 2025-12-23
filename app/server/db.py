@@ -3,7 +3,7 @@
 import logging
 
 from redis import Redis as RedisSync
-from redis.asyncio.client import Redis
+from redis.asyncio.client import Redis as AsyncRedis
 
 from db.manager import DatabaseManager
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def init_redis(
     settings: config.Settings | None = None,
-) -> tuple[RedisSync | None, Redis | None]:
+) -> tuple[RedisSync | None, AsyncRedis | None]:
     """
     Initialize the Redis connection.
 
@@ -33,9 +33,12 @@ def init_redis(
     redis_uri = getattr(settings, "redis_uri", None)
     if redis_uri:
         redis_sync: RedisSync = RedisSync.from_url(redis_uri)
-        redis: Redis = Redis.from_url(redis_uri)
+        redis: AsyncRedis = AsyncRedis.from_url(redis_uri)
 
         return redis_sync, redis
+
+    logging.info("Redis connection not initialized")
+    logging.info("Redis URI: %s", redis_uri)
     return None, None
 
 
@@ -48,4 +51,5 @@ db_manager = DatabaseManager(
     config.Settings().surrealdb_database,
 )
 
-redis_sync, redis = init_redis()
+redis_sync, redis_async = init_redis()
+redis: AsyncRedis = redis_async

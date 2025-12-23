@@ -3,7 +3,7 @@
 from typing import ClassVar, Self
 
 from aiocache import cached
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 
 from db.models import BaseSurrealEntity, RecordId
 
@@ -33,7 +33,7 @@ class Company(BaseSurrealEntity):
         description="Company name",
         json_schema_extra={"surreal_index": "idx_company_name"},
     )
-    sensor_types: list[str] = Field(
+    sensor_types: list[str] | None = Field(
         default_factory=lambda: list(Company._DEFAULT_ALLOWED_SENSOR_TYPES),
         description="List of allowed sensor types for this company",
     )
@@ -53,8 +53,8 @@ class Company(BaseSurrealEntity):
         default_factory=dict, description="Company additional data"
     )
 
-    @cached(ttl=60 * 30)
     @classmethod
+    @cached(ttl=60 * 30)
     async def get_by_id(
         cls,
         id: RecordId | str | None = None,  # noqa: A002
@@ -67,6 +67,14 @@ class Company(BaseSurrealEntity):
         elif company_id:
             return await super().find_one(company_id=company_id, is_deleted=is_deleted)
         return None
+
+    @field_validator("sensor_types")
+    @classmethod
+    def validate_sensor_types(cls, v: list[str] | None) -> list[str]:
+        """Validate sensor types."""
+        if not v:
+            return cls._DEFAULT_ALLOWED_SENSOR_TYPES
+        return v
 
 
 class Entity(TenantSurrealMixin, AuthorizationMixin, BaseSurrealEntity):

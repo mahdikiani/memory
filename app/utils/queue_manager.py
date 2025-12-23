@@ -4,7 +4,6 @@ import json
 import logging
 
 from server import config
-from server.db import redis
 
 logger = logging.getLogger(__name__)
 
@@ -16,12 +15,14 @@ def _get_queue_name(queue_name: str | None = None) -> str:
 
 async def enqueue(payload: dict[str, object], queue_name: str | None = None) -> int:
     """Push a JSON payload to Redis list (LPUSH)."""
+    from server.db import redis
+
     if redis is None:
         raise RuntimeError("Redis is not configured; cannot enqueue")
 
     target_queue = _get_queue_name(queue_name)
     index = await redis.lpush(target_queue, json.dumps(payload, ensure_ascii=False))
-    logger.info("Enqueued message %s to %s", payload.get("job_id"), target_queue)
+    logger.info("Enqueued message %s to %s", payload.get("id"), target_queue)
     return index
 
 
@@ -29,6 +30,8 @@ async def dequeue(
     queue_name: str | None = None, block_timeout: int = 5
 ) -> dict[str, object] | None:
     """Blocking pop from Redis list (BRPOP)."""
+    from server.db import redis
+
     if redis is None:
         raise RuntimeError("Redis is not configured; cannot dequeue")
 

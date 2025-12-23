@@ -7,7 +7,6 @@ from .metadata import (
     _get_fulltext_field,
     _get_graph_edge_model,
     _get_graph_node_model,
-    _get_table_name,
     _get_vector_field,
 )
 from .models import AbstractBaseSurrealEntity
@@ -29,11 +28,13 @@ class VectorQueryBuilder(QueryBuilder):
         if table is None:
             # Dynamically find model with vector field from metadata
 
-            model_classes = get_all_subclasses(AbstractBaseSurrealEntity)
+            model_classes: list[type[AbstractBaseSurrealEntity]] = get_all_subclasses(
+                AbstractBaseSurrealEntity
+            )
             for model_class in model_classes:
                 vector_field = _get_vector_field(model_class)
                 if vector_field:
-                    table = _get_table_name(model_class)
+                    table = model_class._get_table_name()
                     break
             else:
                 raise ValueError(
@@ -127,11 +128,13 @@ class FullTextQueryBuilder(QueryBuilder):
         """
         if table is None:
             # Dynamically find model with fulltext field from metadata
-            model_classes = get_all_subclasses(AbstractBaseSurrealEntity)
+            model_classes: list[type[AbstractBaseSurrealEntity]] = get_all_subclasses(
+                AbstractBaseSurrealEntity
+            )
             for model_class in model_classes:
                 fulltext_field = _get_fulltext_field(model_class)
                 if fulltext_field:
-                    table = _get_table_name(model_class)
+                    table = model_class._get_table_name()
                     break
             else:
                 raise ValueError(
@@ -238,7 +241,7 @@ class GraphQueryBuilder(QueryBuilder):
         if node_table is None:
             node_model = _get_graph_node_model()
             if node_model:
-                node_table = _get_table_name(node_model)
+                node_table = node_model._get_table_name()
             else:
                 raise ValueError(
                     "No model with 'surreal_graph_node' metadata found. "
@@ -248,7 +251,7 @@ class GraphQueryBuilder(QueryBuilder):
         if edge_table is None:
             edge_model = _get_graph_edge_model()
             if edge_model:
-                edge_table = _get_table_name(edge_model)
+                edge_table = edge_model._get_table_name()
             else:
                 raise ValueError(
                     "No model with 'surreal_graph_edge' metadata found. "
@@ -537,12 +540,14 @@ class CombinedQueryBuilder(QueryBuilder):
         """
         if table is None:
             # Try to find table with vector or fulltext field
-            model_classes = get_all_subclasses(AbstractBaseSurrealEntity)
+            model_classes: list[type[AbstractBaseSurrealEntity]] = get_all_subclasses(
+                AbstractBaseSurrealEntity
+            )
             for model_class in model_classes:
                 vector_field = _get_vector_field(model_class)
                 fulltext_field = _get_fulltext_field(model_class)
                 if vector_field or fulltext_field:
-                    table = _get_table_name(model_class)
+                    table = model_class._get_table_name()
                     break
             else:
                 raise ValueError(
